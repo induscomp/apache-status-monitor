@@ -1,0 +1,35 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+secrets/
+
+# Dependencies and generated output
+node_modules/
+vendor/
+.venv/
+__pycache__/
+.next/
+dist/
+build/
+coverage/
+
+# Runtime data and backups
+data/
+backups/
+*.db
+*.db-*
+*.sqlite*
+*.sql
+*.log
+
+# Local tooling
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
