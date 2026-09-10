@@ -1,38 +1,42 @@
 # Apache Status Monitor
 
-Monitor web open source para ayudar a webmasters a interpretar el estado de uno o varios servidores Apache y tomar decisiones basadas en su evolución.
+Monitor open source para organizar varios servidores y sus servicios Apache Status y MRTG.
 
-**Estado: preparación del proyecto. Todavía no hay aplicación ejecutable, cron ni versión apta para producción.** Los controles de seguridad de la aplicación descritos aquí son requisitos pendientes de implementación y pruebas.
+**SMON-001: base funcional de configuración.** Incluye autenticación con TOTP, administración de servidores/servicios, revisiones de configuración y Docker. **Todavía no hay recolectores ni gráficos de métricas.** Los servicios habilitados aparecen pendientes, sin lecturas ni datos inventados.
 
-## Objetivo
+## Incluye
 
-- Recoger periódicamente métricas de endpoints autorizados `/server-status?auto` mediante un cron que ejecute un recolector interno.
-- Mostrar disponibilidad, workers ocupados y libres, tráfico e histórico por servidor.
-- Identificar tendencias y ofrecer observaciones con evidencia, intervalo temporal y límites de interpretación.
-- Distinguir fallos de recogida y datos ausentes de valores reales de cero.
+- Varios servidores y servicios del mismo tipo; edición, pausa y archivo reversible.
+- Contraseña Argon2id, TOTP, recuperación, sesiones revocables y CSRF.
+- Cloudflare Access con validación de JWT en producción.
+- PostgreSQL con migraciones y cuenta de aplicación sin permisos administrativos.
+- Credenciales de endpoints cifradas y orígenes autorizados por el operador.
+- Interfaz responsive en español, pruebas con PostgreSQL/navegador y CI.
 
-El producto monitorizará servidores autorizados por su administrador. Las métricas disponibles dependen de la configuración de Apache; no se asumirá que `mod_status` proporciona toda la información necesaria para diagnosticar un servidor.
+## Inicio local
 
-## Diseño previsto
+Requisitos: Docker Engine, Docker Compose y Python 3 para generar secretos. Los contenedores usan Python 3.14; no se modifica el Python del equipo.
 
-Panel autenticado → API → almacenamiento de métricas.
+```bash
+cp .env.example .env  # solo si no existe
+python3 scripts/init-secrets.py
+docker compose -f compose.yaml -f compose.local.yaml up --build -d --wait
+docker compose -f compose.yaml -f compose.local.yaml exec backend python -m app.cli create-admin
+```
 
-Cron interno → recolector aislado → endpoints Apache autorizados → almacenamiento de métricas.
+Abre **http://localhost:8187**. El alta es interactiva: elige contraseña, registra TOTP y guarda los códigos de recuperación. No hay cuenta ni contraseña predeterminada. Ajusta `SMON_UID`/`SMON_GID` en `.env` si no son 1000.
 
-El panel consultará datos almacenados. El cron no dependerá de una ruta HTTP pública. La elección del stack y sus versiones mantenidas se documentará antes de implementar el MVP.
+**El perfil local omite Access y solo publica en loopback. No lo uses detrás de un túnel público.** Consulta [despliegue](docs/deployment.md) para acceso remoto y configuración de los orígenes monitorizables.
 
-## Documentación
+## Arquitectura y documentación
 
-- [Arquitectura y requisitos de seguridad](docs/architecture.md)
-- [Hoja de ruta](docs/roadmap.md)
-- [Contribuir](CONTRIBUTING.md)
-- [Comunicar vulnerabilidades](SECURITY.md)
+React + TypeScript + Vite → Nginx → FastAPI → PostgreSQL. Un worker independiente con APScheduler mantiene el estado del planificador; los recolectores están pendientes. Cloudflared tiene un perfil opcional dedicado.
 
-## Licencia
+- [Arquitectura y seguridad](docs/architecture.md)
+- [Instalación y recuperación](docs/deployment.md)
+- [Desarrollo y pruebas](docs/development.md)
+- [Plan de hitos](docs/roadmap.md)
+- [Recorrido del futuro conector MRTG](docs/mrtg.md)
+- [Contribuir](CONTRIBUTING.md) · [Vulnerabilidades](SECURITY.md)
 
-[MIT](LICENSE). Proyecto independiente, sin afiliación con Apache Software Foundation.
-
-## Referencias
-
-- [Documentación oficial de mod_status](https://httpd.apache.org/docs/2.4/mod/mod_status.html)
-- [Prevención de SSRF de OWASP](https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html)
+[Licencia MIT](LICENSE). Proyecto independiente, sin afiliación con Apache Software Foundation.
