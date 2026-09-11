@@ -182,8 +182,8 @@ function Login({
           <details className="setup-help">
             <summary>¿No tienes configurado el autenticador?</summary>
             <p>
-              Durante el alta, la terminal muestra una clave secreta para añadir una cuenta en tu
-              aplicación autenticadora: elige clave manual y tipo basado en tiempo (TOTP).
+              Durante el alta, la terminal muestra un código QR. En tu aplicación autenticadora,
+              pulsa añadir cuenta y escanear QR; después confirma con los seis dígitos que genera.
             </p>
             <p>
               Si ya creaste el usuario pero perdiste esa cuenta, ejecuta desde la carpeta del
@@ -196,10 +196,10 @@ function Login({
               </code>
             </p>
             <p>
-              Te pedirá tu contraseña actual y te guiará para registrar una nueva clave. Puedes
-              hacerlo sin iniciar sesión en la web. Al completarlo se sustituyen los códigos de
-              recuperación y se cierran las sesiones abiertas. Guarda los nuevos códigos en tu
-              gestor de contraseñas.
+              Te pedirá tu contraseña actual y mostrará un nuevo QR para escanear. Puedes hacerlo
+              sin iniciar sesión en la web. Al completarlo se sustituyen los códigos de recuperación
+              y se cierran las sesiones abiertas. Guarda los nuevos códigos en tu gestor de
+              contraseñas.
             </p>
           </details>
         </div>

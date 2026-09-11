@@ -4,6 +4,7 @@ import re
 import secrets
 
 import pyotp
+import segno
 from sqlalchemy import delete, select
 
 from app.config import get_settings, require_local_terminal
@@ -16,14 +17,15 @@ def enrol_totp(email: str) -> tuple[str, list[str]]:
     secret = pyotp.random_base32()
     totp = pyotp.TOTP(secret)
     print("Configura el segundo factor antes de entrar en la web:")
-    print("1. Abre tu aplicación autenticadora y añade una cuenta con clave manual.")
-    print("2. Nombre: Apache Status Monitor. Tipo: basado en tiempo (TOTP), 6 dígitos / 30 s.")
-    print("3. Introduce esta clave secreta en el autenticador y guarda la cuenta:")
+    print("1. En tu aplicación autenticadora, pulsa añadir cuenta y escanear código QR.")
+    print("2. Escanea este QR desde la pantalla. Amplía la terminal o reduce su zoom")
+    print("   si las filas del QR se cortan. El QR es secreto; no lo compartas.")
+    uri = totp.provisioning_uri(name=email, issuer_name="Apache Status Monitor")
+    segno.make_qr(uri).terminal(border=4)
+    print("Alternativa si no puedes escanear: añade una cuenta mediante clave manual,")
+    print("tipo basado en tiempo (TOTP), 6 dígitos / 30 s, con esta clave secreta:")
     print(secret)
-    print("URI alternativa para importar en un autenticador compatible (también es secreta):")
-    print(totp.provisioning_uri(name=email, issuer_name="Apache Status Monitor"))
-    print("4. Introduce abajo los seis dígitos que muestra esa cuenta en el autenticador.")
-    print("La clave larga configura la cuenta; para entrar en la web usa el código temporal.")
+    print("3. Introduce abajo los seis dígitos de Apache Status Monitor en el autenticador.")
     if not totp.verify(getpass.getpass("Código actual de seis dígitos: ").strip(), valid_window=1):
         raise SystemExit("Código incorrecto. No se ha guardado ningún cambio.")
     recovery = [secrets.token_hex(12) for _ in range(8)]

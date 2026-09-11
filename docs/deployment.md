@@ -14,8 +14,8 @@ Secretos creados una vez, sin sobrescribir, modo 0600 y carpeta 0700. Ajusta SMO
 ### Crear el usuario y configurar el autenticador
 
 1. El comando `create-admin` solicita email y contraseña (mínimo 14 caracteres). El email debe coincidir con Access en producción.
-2. Abre una aplicación autenticadora en tu dispositivo. Añade una cuenta mediante **clave manual**, con nombre **Apache Status Monitor** y tipo **basado en tiempo (TOTP)**: seis dígitos, período de 30 segundos.
-3. Introduce en esa cuenta la **clave secreta larga** que muestra la terminal. La URI `otpauth://` es una alternativa para importar la misma cuenta en una aplicación compatible. Ambas contienen el secreto: consérvalas en privado.
+2. Abre una aplicación autenticadora en tu dispositivo y selecciona **añadir cuenta → escanear código QR**.
+3. Escanea el **QR que muestra la terminal**. La cuenta Apache Status Monitor se configura automáticamente. Amplía la terminal o reduce su zoom si se cortan las filas del QR. Si no puedes escanearlo, debajo aparece la clave para añadir la cuenta manualmente: tipo **basado en tiempo (TOTP)**, seis dígitos y período de 30 segundos. El QR y la clave contienen el mismo secreto: consérvalos en privado. El QR se genera localmente con [Segno](https://segno.readthedocs.io/en/latest/), sin servicios externos ni archivos de imagen.
 4. La aplicación mostrará un **código de seis dígitos**. Escríbelo en la terminal para confirmar la configuración; el usuario solo se guarda si es válido.
 5. Guarda los ocho **códigos de recuperación** que muestra la terminal en tu gestor de contraseñas. Cada uno permite un único acceso si pierdes el autenticador.
 
@@ -31,7 +31,7 @@ Desde la carpeta del proyecto en Kakarot, ejecuta:
 docker compose -f compose.yaml -f compose.local.yaml exec backend python -m app.cli reset-mfa
 ```
 
-Introduce tu contraseña actual y sigue los pasos de configuración anteriores con la nueva clave. **No necesitas iniciar sesión en la web ni disponer del código TOTP anterior**: este comando exige acceso a la terminal local y tu contraseña. Al confirmar el nuevo código, reemplaza el autenticador y los códigos de recuperación anteriores y revoca las sesiones abiertas. Guarda los nuevos códigos de recuperación y vuelve a la web con un código actual del nuevo autenticador.
+Introduce tu contraseña actual y escanea el nuevo QR siguiendo los pasos anteriores. **No necesitas iniciar sesión en la web ni disponer del código TOTP anterior**: este comando exige acceso a la terminal local y tu contraseña. Al confirmar el nuevo código, reemplaza el autenticador y los códigos de recuperación anteriores y revoca las sesiones abiertas. Guarda los nuevos códigos de recuperación y vuelve a la web con un código actual del nuevo autenticador.
 
 ## Configuración de servicios
 
