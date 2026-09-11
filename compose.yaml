@@ -72,6 +72,8 @@ services:
 
   worker:
     <<: *app
+    secrets: [db_password, encryption_key, backup_key]
+    volumes: [./geoip:/data/geoip:ro, ./backups:/data/backups]
     command: [python, -m, app.worker]
     depends_on:
       migrate: {condition: service_completed_successfully}
@@ -127,5 +129,6 @@ secrets:
   db_owner_password: {file: ./secrets/db_owner_password}
   db_password: {file: ./secrets/db_password}
   encryption_key: {file: ./secrets/encryption_key}
+  backup_key: {file: ./secrets/backup_key}
   setup_token: {file: ./secrets/setup_token}
   cloudflare_token: {file: ./secrets/cloudflare_token}

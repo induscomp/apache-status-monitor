@@ -33,6 +33,7 @@ Abre **http://localhost:8187** y completa el asistente web: copia la clave del a
 React + TypeScript + Vite → Nginx → FastAPI → PostgreSQL. Un worker independiente con APScheduler recoge Apache y MRTG, correlaciona muestras, evalúa incidentes y procesa el correo configurado. Cloudflared tiene un perfil opcional dedicado.
 
 - [Estado del servidor, incidentes, correo y GeoIP](docs/analysis.md)
+- [Backup cifrado y recuperación](docs/backups.md)
 - [Arquitectura y seguridad](docs/architecture.md)
 - [Instalación y recuperación](docs/deployment.md)
 - [Desarrollo y pruebas](docs/development.md)

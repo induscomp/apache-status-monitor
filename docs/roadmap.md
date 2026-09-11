@@ -5,11 +5,11 @@ Investigar qué dominios, IP, rutas y patrones observamos antes de una degradaci
 | Hito | Entrega | Estado |
 |---|---|---|
 | SMON-001 | Docker, autenticación, Access, migraciones, administración multiservidor/servicios, conectores, healthchecks y CI | Implementado; ver development.md |
-| SMON-002 | Transporte seguro, parser/recogida Apache, snapshots, originales cifrados, retención y backup | Recogida/retención operativas; backup pendiente |
+| SMON-002 | Transporte seguro, parser/recogida Apache, snapshots, originales cifrados, retención y backup | Recogida, retención y backup cifrado operativos |
 | SMON-003 | Panel de métricas, históricos, dominio/IP y eventos manuales | Panel, series y rankings operativos; eventos pendientes |
 | SMON-004 | MRTG por enlaces de imágenes a páginas de detalle, selección, correlación y GeoLite local | Implementado; bases GeoIP opcionales aportadas por el operador |
 | SMON-005 | Anomalías explicables y email con deduplicación, escalado y resolución | Implementado; SMTP real y calibración pendientes |
-| SMON-006 | Antes/después, diagnóstico, restauración completa y documentación operativa | Pendiente |
+| SMON-006 | Antes/después, diagnóstico, restauración completa y documentación operativa | Restauración aislada y documentación operativas; comparación antes/después pendiente |
 
 Cada hito requiere explicar alcance, implementar en rama, probar, documentar y crear commit/pull request `SMON-XXX: descripción`. La ejecución continúa según las instrucciones del mantenedor, sin modificar otros proyectos.
 

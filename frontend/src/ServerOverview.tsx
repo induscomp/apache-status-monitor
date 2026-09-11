@@ -33,6 +33,7 @@ type Rankings = {
   posts?: { domain: string; ip: string; path: string; count: number }[];
 };
 type Overview = {
+  backup?: { state: string; last_at: string | null };
   incident_summary?: IncidentSummary;
   state: string;
   service_id: string | null;
@@ -51,6 +52,12 @@ type Overview = {
   geoip: { country: boolean; asn: boolean };
 };
 type Incident = {
+  progress?: {
+    phase: string;
+    recovery_samples: number;
+    required_recovery_samples: number;
+    last_evaluated_at: string | null;
+  };
   id: string;
   subject: string;
   status: string;
@@ -347,6 +354,18 @@ export function ServerOverview({
                     {number(i.evidence.reference?.median)} ({i.evidence.reference?.samples}{' '}
                     muestras).
                   </p>
+                  {i.progress && (
+                    <p>
+                      {i.progress.phase === 'recovering'
+                        ? `Recuperación en curso: ${i.progress.recovery_samples}/3 muestras válidas.`
+                        : i.progress.phase === 'awaiting'
+                          ? 'Esperando evidencia reciente y comparable; no se considera resuelto.'
+                          : i.progress.phase === 'resolved'
+                            ? 'Recuperación confirmada.'
+                            : 'La última evaluación mantiene la anomalía.'}{' '}
+                      Última evaluación: {date(i.progress.last_evaluated_at)}
+                    </p>
+                  )}
                   <p>{i.evidence.note}</p>
                   <details>
                     <summary>Ver evidencias coincidentes</summary>
@@ -371,6 +390,14 @@ export function ServerOverview({
             </>
           ) : (
             <>
+              {data.backup && (
+                <p className="backup-state">
+                  Backup cifrado:{' '}
+                  {data.backup.state === 'ok'
+                    ? `disponible · ${date(data.backup.last_at)}`
+                    : 'sin copia reciente verificada'}
+                </p>
+              )}
               <div className="overview-controls">
                 <label>
                   Servicio Apache

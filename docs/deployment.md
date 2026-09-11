@@ -92,6 +92,6 @@ Conserva una copia externa segura de la clave de cifrado: perderla impide descif
 
 Haz copia manual antes de cambiar esquema. Actualiza mediante PR y ejecuta `up --build -d --wait`; la tarea migrate aplica cambios antes de arrancar backend/worker. **No uses `down --volumes` para actualizar: elimina datos.**
 
-El volumen persiste configuración. Backup diario cifrado, retención de métricas y restauración automatizada llegarán en SMON-002; no hay backups programados todavía. Conserva copias manuales privadas y claves separadas antes de guardar información importante.
+El worker realiza backups diarios cifrados con clave separada y conserva siete diarios y cuatro semanales. La home muestra la última copia disponible. Para actualizar una instalación anterior, ejecuta primero `python3 scripts/init-secrets.py`: añade la clave de backup sin cambiar las existentes. Consulta [backup y restauración aislada](backups.md), conserva ambas claves fuera del equipo y verifica una copia compatible antes de cambiar el esquema.
 
 Esta entrega no es una versión auditada para producción. Las pruebas cubren controles implementados, no recolectores futuros ni tu configuración externa de Access.

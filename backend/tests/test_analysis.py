@@ -515,3 +515,39 @@ def test_compact_timeline_is_scoped_and_never_marks_missing_data_healthy():
         assert summary["bins"][0]["state"] == "unknown"
         assert summary["bins"][-1]["details"][0]["subject"] == "domain:example.test"
         assert summarize(db, other.server_id)["open"] == 0
+
+
+def test_incident_progress_shows_recovery_and_missing_coverage():
+    from app.analysis_api import incident_progress
+    from app.models import AnomalyState
+
+    with session_factory()() as db:
+        svc = service(db)
+        incident = Incident(
+            server_id=svc.server_id,
+            service_id=svc.id,
+            subject="resource:ram_free",
+            kind="resources",
+            status="open",
+            severity="critical",
+            opened_at=now(),
+            updated_at=now(),
+            evidence={},
+        )
+        db.add(incident)
+        db.flush()
+        state = AnomalyState(
+            service_id=svc.id,
+            subject=incident.subject,
+            incident_id=incident.id,
+            last_at=now(),
+            good=2,
+            bad=0,
+        )
+        db.add(state)
+        db.flush()
+        assert incident_progress(db, incident)["phase"] == "recovering"
+        state.last_at = now() - timedelta(minutes=15)
+        db.flush()
+        assert incident_progress(db, incident)["phase"] == "awaiting"
+        assert incident.status == "open"

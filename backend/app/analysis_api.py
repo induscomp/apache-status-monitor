@@ -13,6 +13,8 @@ from app.db import get_db
 from app.geo import GEO_DIR
 from app.incident_summary import summarize
 from app.models import (
+    AnomalyState,
+    ComponentHeartbeat,
     EmailDelivery,
     Incident,
     NotificationConfig,
@@ -26,6 +28,29 @@ from app.schemas import StrictModel
 from app.security import authenticated, rate_limit
 
 router = APIRouter()
+
+
+def backup_status(db):
+    heartbeat = db.get(ComponentHeartbeat, "backup")
+    return {
+        "state": "ok"
+        if heartbeat and now() - heartbeat.seen_at < timedelta(hours=26)
+        else "missing",
+        "last_at": heartbeat.seen_at if heartbeat else None,
+    }
+
+
+def incident_progress(db, incident):
+    state = db.scalar(select(AnomalyState).where(AnomalyState.incident_id == incident.id))
+    phase = "resolved" if incident.status == "resolved" else "awaiting"
+    if incident.status == "open" and state and now() - state.last_at < timedelta(minutes=10):
+        phase = "recovering" if state.good else "anomalous" if state.bad else "awaiting"
+    return {
+        "phase": phase,
+        "recovery_samples": state.good if state else 0,
+        "required_recovery_samples": 3,
+        "last_evaluated_at": state.last_at if state else None,
+    }
 
 
 @router.get("/servers/{server_id}/analysis")
@@ -154,6 +179,7 @@ def server_state(
         "warnings": last.warnings if last else ["Esperando recogidas de Apache y MRTG."],
         "open_incidents": len(incidents),
         "incident_summary": summarize(db, server.id),
+        "backup": backup_status(db),
         "geoip": {
             "country": (GEO_DIR / "GeoLite2-Country.mmdb").is_file(),
             "asn": (GEO_DIR / "GeoLite2-ASN.mmdb").is_file(),
@@ -189,6 +215,7 @@ def incident_list(
                 "opened_at": i.opened_at,
                 "updated_at": i.updated_at,
                 "resolved_at": i.resolved_at,
+                "progress": incident_progress(db, i),
                 "evidence": {
                     **i.evidence,
                     "coincidences": i.evidence.get("coincidences", {})

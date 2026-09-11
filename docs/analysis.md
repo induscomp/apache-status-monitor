@@ -51,7 +51,7 @@ La cola registra apertura, escalado, resolución y recordatorios con cooldown de
 
 Country/ASN son enriquecimiento opcional **local** de las IPs ya observadas. Coloca `GeoLite2-Country.mmdb` y `GeoLite2-ASN.mmdb` en `geoip/`, siguiendo su licencia. Docker las monta en solo lectura. Sin ellas, o sin coincidencia, aparece «Desconocido». No hay consultas a servicios externos; las consultas locales tienen caché acotada e invalidación al cambiar los archivos. Los datos GeoIP no identifican personas ni demuestran malicia.
 
-Originales cifrados: siete días. Workers/IP/rutas: treinta días, incluidos los detalles coincidentes de incidentes. Series y agregados por dominio: noventa días. La limpieza corre cada hora. El archivo horario anual, backup diario y restauración completa del plan inicial siguen pendientes; no se presentan como implementados.
+Originales cifrados: siete días. Workers/IP/rutas: treinta días, incluidos los detalles coincidentes de incidentes. Series y agregados por dominio: noventa días. La limpieza corre cada hora. El backup diario cifrado y la restauración en una base vacía están descritos en [backups](backups.md). El archivo horario anual sigue pendiente.
 
 API privada: `GET /api/v1/servers/{id}/analysis` (servicio, dominio y periodo opcionales), `GET /api/v1/servers/{id}/incidents` (paginado), `GET/PUT /api/v1/notifications`. Mantienen sesión local, Access en producción y CSRF en mutaciones.
 
@@ -60,3 +60,5 @@ API privada: `GET /api/v1/servers/{id}/analysis` (servicio, dominio y periodo op
 Cada servidor muestra una franja compacta de las últimas 24 horas, con tramos de treinta minutos y contadores de incidencias abiertas, de prioridad alta y resueltas. Resume todos sus servicios Apache; no mezcla otros servidores. En escritorio, pasar el ratón por un tramo muestra periodo, cobertura, dominios/recursos, servicio y fechas de apertura/resolución. También funciona con foco de teclado (Escape cierra el detalle) y toque en móvil. «Ver incidentes» abre el listado completo.
 
 El gris rayado indica cobertura insuficiente, nunca un servidor sano. Los tramos sin incidencias registradas tampoco garantizan ausencia de problemas entre recogidas. La prioridad representada es la registrada en el incidente (incluye escalados), no una reconstrucción exacta de cada cambio de severidad. Si se alcanza el límite de registros del resumen se indica que la vista es parcial.
+
+Los incidentes muestran además la fase de evaluación: anomalía vigente, recuperación (muestras válidas de tres), espera de datos o recuperación confirmada. El último valor anómalo y su fecha son evidencias históricas; no se presentan como una lectura actual durante la recuperación.

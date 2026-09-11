@@ -41,7 +41,7 @@ E2E arranca backend en 8189 y Vite en 4173; falla si están ocupados. Solo usa d
 - Cuerpos limitados incluso con transferencia chunked, errores sin reflejar secretos.
 - Heartbeat y estados pendientes sin lecturas simuladas.
 
-La suite también prueba parsers Apache/MRTG, transporte contra DNS rebinding, series, retención, referencias por dominio/servicio, presión de RAM incluso con slots libres o Apache incompleto, idempotencia, confirmación/recuperación, correo cifrado y deduplicación. El navegador recorre estado, gráficos, rankings, incidentes y correo desactivado, en escritorio/móvil. Backup/restauración completa permanecen pendientes.
+La suite también prueba parsers Apache/MRTG, transporte contra DNS rebinding, series, retención, referencias por dominio/servicio, presión de RAM incluso con slots libres o Apache incompleto, idempotencia, confirmación/recuperación, correo cifrado y deduplicación. El navegador recorre estado, gráficos, rankings, incidentes y correo desactivado, en escritorio/móvil. Backup/restauración prueban cifrado, orden, truncamiento, claves incorrectas, destino no vacío, rotación y limpieza de datos vencidos.
 
 CI ejecuta lint, auditorías, build, pruebas y arranque Docker. Acciones fijadas por SHA, permisos de lectura, checkout sin credenciales persistidas y artefactos solo sintéticos. Secretos excluidos de Git y contextos Docker.
 
