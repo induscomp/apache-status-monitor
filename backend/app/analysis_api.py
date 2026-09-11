@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.db import get_db
 from app.geo import GEO_DIR
+from app.incident_summary import summarize
 from app.models import (
     EmailDelivery,
     Incident,
@@ -152,6 +153,7 @@ def server_state(
         else {},
         "warnings": last.warnings if last else ["Esperando recogidas de Apache y MRTG."],
         "open_incidents": len(incidents),
+        "incident_summary": summarize(db, server.id),
         "geoip": {
             "country": (GEO_DIR / "GeoLite2-Country.mmdb").is_file(),
             "asn": (GEO_DIR / "GeoLite2-ASN.mmdb").is_file(),

@@ -11,6 +11,8 @@ import {
 } from 'recharts';
 import { api } from './api';
 import './overview.css';
+import { IncidentTimeline } from './IncidentTimeline';
+import type { IncidentSummary } from './IncidentTimeline';
 
 type Resource = {
   value: number;
@@ -31,6 +33,7 @@ type Rankings = {
   posts?: { domain: string; ip: string; path: string; count: number }[];
 };
 type Overview = {
+  incident_summary?: IncidentSummary;
   state: string;
   service_id: string | null;
   services: { id: string; name: string }[];
@@ -247,9 +250,11 @@ function Evidence({ rankings }: { rankings: Rankings }) {
 export function ServerOverview({
   serverId,
   view,
+  openIncidents,
 }: {
   serverId: string;
   view: 'status' | 'incidents';
+  openIncidents: () => void;
 }) {
   const [data, setData] = useState<Overview | null>(null);
   const [incidents, setIncidents] = useState<Incident[]>([]);
@@ -305,6 +310,9 @@ export function ServerOverview({
         <p>Cargando estado…</p>
       ) : (
         <>
+          {view === 'status' && data.incident_summary && (
+            <IncidentTimeline summary={data.incident_summary} openIncidents={openIncidents} />
+          )}
           <div className={`overview-status ${data.state}`}>
             <h2>{states[data.state]}</h2>
             <p>

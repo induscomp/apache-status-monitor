@@ -468,3 +468,50 @@ def test_old_encrypted_sources_supply_new_metadata_without_extra_fetches():
             )
             is None
         )
+
+
+def test_compact_timeline_is_scoped_and_never_marks_missing_data_healthy():
+    from app.incident_summary import summarize
+
+    with session_factory()() as db:
+        svc = service(db)
+        other = service(db)
+        stamp = now()
+        db.add(
+            Incident(
+                server_id=svc.server_id,
+                service_id=svc.id,
+                subject="domain:example.test",
+                kind="domain",
+                status="open",
+                severity="critical",
+                opened_at=stamp - timedelta(minutes=45),
+                updated_at=stamp,
+                evidence={},
+            )
+        )
+        db.add(
+            Incident(
+                server_id=svc.server_id,
+                service_id=svc.id,
+                subject="resource:ram_free",
+                kind="resources",
+                status="resolved",
+                severity="warning",
+                opened_at=stamp - timedelta(hours=3),
+                updated_at=stamp - timedelta(hours=2),
+                resolved_at=stamp - timedelta(hours=2),
+                evidence={},
+            )
+        )
+        db.flush()
+        summary = summarize(db, svc.server_id)
+        assert summary["open"] == 1
+        assert summary["critical"] == 1
+        assert summary["resolved"] == 1
+        assert len(summary["bins"]) == 48
+        assert summary["bins"][-1]["state"] == "critical"
+        assert summary["bins"][-1]["coverage"] == "missing"
+        assert summary["bins"][0]["state"] == "unknown"
+        assert summary["bins"][-1]["details"][0]["subject"] == "domain:example.test"
+        assert summarize(db, other.server_id)["open"] == 0

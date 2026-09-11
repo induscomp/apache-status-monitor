@@ -54,3 +54,9 @@ Country/ASN son enriquecimiento opcional **local** de las IPs ya observadas. Col
 Originales cifrados: siete días. Workers/IP/rutas: treinta días, incluidos los detalles coincidentes de incidentes. Series y agregados por dominio: noventa días. La limpieza corre cada hora. El archivo horario anual, backup diario y restauración completa del plan inicial siguen pendientes; no se presentan como implementados.
 
 API privada: `GET /api/v1/servers/{id}/analysis` (servicio, dominio y periodo opcionales), `GET /api/v1/servers/{id}/incidents` (paginado), `GET/PUT /api/v1/notifications`. Mantienen sesión local, Access en producción y CSRF en mutaciones.
+
+## Resumen temporal en la home
+
+Cada servidor muestra una franja compacta de las últimas 24 horas, con tramos de treinta minutos y contadores de incidencias abiertas, de prioridad alta y resueltas. Resume todos sus servicios Apache; no mezcla otros servidores. En escritorio, pasar el ratón por un tramo muestra periodo, cobertura, dominios/recursos, servicio y fechas de apertura/resolución. También funciona con foco de teclado (Escape cierra el detalle) y toque en móvil. «Ver incidentes» abre el listado completo.
+
+El gris rayado indica cobertura insuficiente, nunca un servidor sano. Los tramos sin incidencias registradas tampoco garantizan ausencia de problemas entre recogidas. La prioridad representada es la registrada en el incidente (incluye escalados), no una reconstrucción exacta de cada cambio de severidad. Si se alcanza el límite de registros del resumen se indica que la vista es parcial.

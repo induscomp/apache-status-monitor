@@ -723,7 +723,12 @@ function Workspace({ session, expired }: { session: Session; expired: () => void
             ))}
           </nav>
           {(view === 'status' || view === 'incidents') && selected && (
-            <ServerOverview key={selected} serverId={selected} view={view} />
+            <ServerOverview
+              key={selected}
+              serverId={selected}
+              view={view}
+              openIncidents={() => setView('incidents')}
+            />
           )}
           {(view === 'status' || view === 'incidents') && !selected && (
             <p>Añade un servidor y configura sus servicios Apache Status y MRTG para empezar.</p>

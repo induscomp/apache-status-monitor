@@ -106,3 +106,122 @@
     padding: 14px;
   }
 }
+.incident-summary {
+  padding: 18px 20px;
+  background: white;
+  border: 1px solid #dbe5df;
+  border-radius: 12px;
+  min-width: 0;
+}
+.incident-summary-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.incident-summary-heading h2 {
+  margin: 0;
+  font-size: 17px;
+}
+.incident-summary-heading p {
+  margin: 8px 0 16px;
+  font-size: 13px;
+}
+.incident-timeline {
+  position: relative;
+}
+.incident-segments {
+  display: grid;
+  grid-template-columns: repeat(48, minmax(0, 1fr));
+  gap: 3px;
+}
+.incident-segment {
+  display: block;
+  min-width: 0;
+  min-height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.incident-segment:hover,
+.incident-segment:focus-visible {
+  outline: 2px solid #243e36;
+  outline-offset: 2px;
+}
+.incident-segment.critical,
+.timeline-legend i.critical {
+  background: #bd4937;
+}
+.incident-segment.warning,
+.timeline-legend i.warning {
+  background: #ba8520;
+}
+.incident-segment.observed,
+.incident-segment.resolved,
+.timeline-legend i.observed {
+  background: #478475;
+}
+.incident-segment.unknown,
+.timeline-legend i.unknown {
+  background: repeating-linear-gradient(135deg, #d8dfdc, #d8dfdc 4px, #edf0ee 4px, #edf0ee 8px);
+}
+.incident-time-detail {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  margin: auto;
+  max-width: 510px;
+  padding: 16px;
+  border: 1px solid #607b6d;
+  border-radius: 10px;
+  color: #20372e;
+  background: #fff;
+  box-shadow: 0 8px 24px #173e3026;
+  font-size: 13px;
+}
+.incident-time-detail p {
+  margin: 8px 0;
+}
+.timeline-scale {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #586f65;
+  margin-top: 7px;
+}
+.timeline-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 11px;
+  color: #52675e;
+  margin-bottom: 0;
+}
+.timeline-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.timeline-legend i {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+}
+@media (max-width: 600px) {
+  .incident-summary {
+    padding: 14px;
+  }
+  .incident-segments {
+    gap: 2px;
+  }
+  .incident-summary-heading {
+    align-items: start;
+  }
+  .incident-summary-heading button {
+    font-size: 12px;
+    padding: 8px;
+  }
+}

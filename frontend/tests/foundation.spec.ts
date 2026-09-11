@@ -102,6 +102,34 @@ test('administrator configures independent services, persists changes and revoke
   await page.route('**/api/v1/servers/*/analysis?*', (route) =>
     route.fulfill({
       json: {
+        incident_summary: {
+          start: overviewAt,
+          end: overviewAt,
+          partial: false,
+          open: 1,
+          critical: 1,
+          resolved: 0,
+          bins: [
+            {
+              start: overviewAt,
+              end: overviewAt,
+              state: 'critical',
+              coverage: 'partial',
+              samples: 2,
+              incidents: 1,
+              resolved: 0,
+              details: [
+                {
+                  subject: 'domain:example.test',
+                  service: 'Apache principal',
+                  opened_at: overviewAt,
+                  resolved_at: null,
+                  severity: 'critical',
+                },
+              ],
+            },
+          ],
+        },
         state: 'resource_pressure',
         service_id: 'fixture-service',
         services: [{ id: 'fixture-service', name: 'Apache principal' }],
@@ -159,12 +187,24 @@ test('administrator configures independent services, persists changes and revoke
   await page.getByRole('button', { name: 'Estado del servidor', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Presión de recursos detectada' })).toBeVisible();
   await expect(page.getByText('Slots libres no prueban salud.', { exact: true })).toBeVisible();
+  const timeSegment = page
+    .getByRole('region', { name: 'Resumen temporal de incidencias' })
+    .locator('.incident-segment')
+    .first();
+  await timeSegment.hover();
+  await expect(page.getByRole('tooltip')).toContainText('Dominio: example.test');
+  await expect(page.getByRole('tooltip')).toContainText('Cobertura parcial');
+  await timeSegment.focus();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('tooltip')).toHaveCount(0);
   await page.getByRole('button', { name: 'example.test', exact: true }).first().click();
   await expect(page.getByRole('heading', { name: 'Histórico de example.test' })).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
   await expect
     .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
     .toBe(true);
+  await timeSegment.click();
+  await expect(page.getByRole('tooltip')).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('server-status-mobile.png'), fullPage: true });
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.getByRole('button', { name: 'Incidentes', exact: true }).click();
