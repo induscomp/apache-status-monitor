@@ -15,6 +15,7 @@ x-app: &app
     - db_password
     - encryption_key
   networks: [database, application]
+  volumes: [./geoip:/data/geoip:ro]
   read_only: true
   tmpfs: ["/tmp:rw,noexec,nosuid,size=32m"]
   cap_drop: [ALL]

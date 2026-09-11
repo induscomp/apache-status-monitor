@@ -157,3 +157,62 @@ class MrtgObservation(Base):
     values: Mapped[list] = mapped_column(JSONB, default=list)
     warnings: Mapped[list] = mapped_column(JSONB, default=list)
     raw_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class ServerFrame(Base):
+    __tablename__ = "server_frames"
+    id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=identifier)
+    observation_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), unique=True)
+    server_id: Mapped[str] = mapped_column(ForeignKey("servers.id"), index=True)
+    service_id: Mapped[str] = mapped_column(ForeignKey("services.id"), index=True)
+    revision: Mapped[int] = mapped_column()
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    valid: Mapped[bool] = mapped_column(default=False)
+    metrics: Mapped[dict] = mapped_column(JSONB, default=dict)
+    domains: Mapped[dict] = mapped_column(JSONB, default=dict)
+    details: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    resources: Mapped[dict] = mapped_column(JSONB, default=dict)
+    warnings: Mapped[list] = mapped_column(JSONB, default=list)
+
+
+class Incident(Base):
+    __tablename__ = "incidents"
+    id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=identifier)
+    server_id: Mapped[str] = mapped_column(ForeignKey("servers.id"), index=True)
+    service_id: Mapped[str] = mapped_column(ForeignKey("services.id"))
+    subject: Mapped[str] = mapped_column(String(300))
+    kind: Mapped[str] = mapped_column(String(30))
+    status: Mapped[str] = mapped_column(String(20), default="open")
+    severity: Mapped[str] = mapped_column(String(20), default="warning")
+    opened_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    evidence: Mapped[dict] = mapped_column(JSONB, default=dict)
+
+
+class AnomalyState(Base):
+    __tablename__ = "anomaly_states"
+    __table_args__ = (UniqueConstraint("service_id", "subject"),)
+    id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=identifier)
+    service_id: Mapped[str] = mapped_column(ForeignKey("services.id"))
+    subject: Mapped[str] = mapped_column(String(300))
+    last_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    bad: Mapped[int] = mapped_column(default=0)
+    good: Mapped[int] = mapped_column(default=0)
+    incident_id: Mapped[str | None] = mapped_column(ForeignKey("incidents.id"), nullable=True)
+
+
+class NotificationConfig(Base):
+    __tablename__ = "notification_config"
+    id: Mapped[int] = mapped_column(primary_key=True, default=1)
+    encrypted: Mapped[str] = mapped_column(Text)
+
+
+class EmailDelivery(Base):
+    __tablename__ = "email_deliveries"
+    id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=identifier)
+    incident_id: Mapped[str] = mapped_column(ForeignKey("incidents.id"))
+    transition: Mapped[str] = mapped_column(String(30))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    status: Mapped[str] = mapped_column(String(20), default="pending")
+    error: Mapped[str | None] = mapped_column(String(200), nullable=True)

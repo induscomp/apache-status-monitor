@@ -28,6 +28,7 @@ import { api, ApiError } from './api';
 import { Setup } from './Setup';
 import { ApacheDiagnostics } from './ApacheDiagnostics';
 import { MrtgDiagnostics } from './MrtgDiagnostics';
+import { ServerOverview, MailConfiguration } from './ServerOverview';
 import type { Health, Page, Server, Service, Session } from './api';
 import './styles.css';
 
@@ -387,20 +388,12 @@ function ServiceForm({
         {kind === 'mrtg' && (
           <p className="info-note">
             MRTG se lee siguiendo los enlaces de las imágenes hasta las páginas con estadísticas
-            numéricas. El recolector se incorporará en SMON-004.
+            numéricas, sin analizar los píxeles de las gráficas.
           </p>
         )}
         <label>
           Intervalo (minutos)
-          <input
-            name="interval"
-            type="number"
-            min={1}
-            max={1440}
-            step={1}
-            defaultValue={(current?.interval_seconds ?? 300) / 60}
-            required
-          />
+          <input name="interval" type="number" min={5} max={5} readOnly value={5} required />
         </label>
         {kind === 'apache_status' && (
           <label className="check-label">
@@ -461,6 +454,7 @@ function Workspace({ session, expired }: { session: Session; expired: () => void
   const [diagnostic, setDiagnostic] = useState<Service | null>(null);
   const [servers, setServers] = useState<Page<Server>>(EMPTY);
   const [services, setServices] = useState<Page<Service>>(EMPTY);
+  const [view, setView] = useState<'status' | 'incidents' | 'configuration' | 'mail'>('status');
   const [selected, setSelected] = useState<string | null>(null);
   const [serverOffset, setServerOffset] = useState(0);
   const [serviceOffset, setServiceOffset] = useState(0);
@@ -548,7 +542,7 @@ function Workspace({ session, expired }: { session: Session; expired: () => void
       body,
     );
     await refreshServices();
-    setNotice('Servicio guardado. El recolector está pendiente de implementación.');
+    setNotice('Servicio guardado. El worker recogerá las muestras según su intervalo.');
   }
   async function changeService(service: Service, changes: Partial<Service>) {
     await api(`/services/${service.id}`, session.csrf_token, 'PUT', {
@@ -687,7 +681,9 @@ function Workspace({ session, expired }: { session: Session; expired: () => void
             <div>
               <span className="eyebrow">CENTRO DE CONTROL</span>
               <h1>Tu infraestructura</h1>
-              <p className="muted">Conecta tus servidores. Organiza lo que necesitas observar.</p>
+              <p className="muted">
+                Apache Status y MRTG: tendencias, actividad observada e incidentes.
+              </p>
             </div>
             <button className="primary" onClick={() => setServerForm('new')}>
               <Plus size={17} />
@@ -712,293 +708,322 @@ function Workspace({ session, expired }: { session: Session; expired: () => void
               </button>
             </div>
           )}
-          <section className="stats" aria-label="Resumen">
-            <div className="stat">
-              <span>
-                Servidores registrados
-                <ServerIcon size={18} />
-              </span>
-              <strong>{servers.total}</strong>
-              <small>En este espacio de trabajo</small>
-            </div>
-            <div className="stat">
-              <span>
-                Servicios del servidor
-                <Layers3 size={18} />
-              </span>
-              <strong>{services.total}</strong>
-              <small>{current?.name ?? 'Selecciona o añade un servidor'}</small>
-            </div>
-            <div className="stat">
-              <span>
-                Almacenamiento
-                <Database size={18} />
-              </span>
-              <strong className="status-value">
-                {health?.database === 'ok' ? 'Conectado' : 'Sin verificar'}
-              </strong>
-              <small>Configuración persistente en PostgreSQL</small>
-            </div>
-          </section>
-          <section className="foundation-note">
-            <div className="square-icon">
-              <Radio size={20} />
-            </div>
-            <div>
-              <strong>Observa Apache y las métricas de MRTG.</strong>
-              <p>
-                Ya puedes organizar servidores y servicios. Apache Status ya dispone de recogida
-                periódica e histórico. Abre «Ver diagnóstico» para consultar las muestras. MRTG
-                descubre y recoge las páginas con estadísticas numéricas.
-              </p>
-            </div>
-            <span className="tag">APACHE + MRTG</span>
-          </section>
-          <section className="service-panel">
-            <div className="panel-heading">
-              <div className="server-title">
-                <span className="square-icon">
-                  <ServerIcon size={21} />
-                </span>
-                <div>
-                  <span className="eyebrow">SERVIDOR SELECCIONADO</span>
-                  <h2>{current?.name ?? 'Añade tu primer servidor'}</h2>
-                  {current?.description && <p className="muted small">{current.description}</p>}
-                </div>
-              </div>
-              {current && (
-                <div className="panel-actions">
-                  <button
-                    className="icon-button"
-                    aria-label="Editar servidor"
-                    onClick={() => setServerForm(current)}
-                  >
-                    <Pencil size={17} />
-                  </button>
-                  <button
-                    className="icon-button"
-                    aria-label={current.archived ? 'Restaurar servidor' : 'Archivar servidor'}
-                    onClick={() =>
-                      setConfirm({
-                        title: current.archived
-                          ? 'Restaurar este servidor'
-                          : 'Archivar este servidor y pausar sus servicios',
-                        action: archiveServer,
-                      })
-                    }
-                  >
-                    <Archive size={17} />
-                  </button>
-                </div>
-              )}
-            </div>
-            {!!current?.tags.length && (
-              <div className="tags">
-                {current.tags.map((tag) => (
-                  <span className="tag" key={tag}>
-                    {tag}
+          <nav className="overview-controls" aria-label="Vistas del servidor">
+            {(
+              [
+                ['status', 'Estado del servidor'],
+                ['incidents', 'Incidentes'],
+                ['configuration', 'Configuración'],
+                ['mail', 'Correo'],
+              ] as const
+            ).map(([key, label]) => (
+              <button key={key} aria-pressed={view === key} onClick={() => setView(key)}>
+                {label}
+              </button>
+            ))}
+          </nav>
+          {(view === 'status' || view === 'incidents') && selected && (
+            <ServerOverview key={selected} serverId={selected} view={view} />
+          )}
+          {(view === 'status' || view === 'incidents') && !selected && (
+            <p>Añade un servidor y configura sus servicios Apache Status y MRTG para empezar.</p>
+          )}
+          {view === 'mail' && <MailConfiguration csrf={session.csrf_token} />}
+          {view === 'configuration' && (
+            <>
+              <section className="stats" aria-label="Resumen">
+                <div className="stat">
+                  <span>
+                    Servidores registrados
+                    <ServerIcon size={18} />
                   </span>
-                ))}
-              </div>
-            )}
-            {current?.archived && (
-              <div className="info-note">
-                Servidor archivado. Su configuración se conserva y sus servicios no se ejecutarán.
-              </div>
-            )}
-            <div className="toolbar">
-              <label className="search">
-                <Search size={17} />
-                <input
-                  aria-label="Buscar en los servicios de esta página"
-                  placeholder="Buscar en esta página…"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
-              </label>
-              <div>
-                <button
-                  className="icon-button"
-                  aria-label="Actualizar"
-                  disabled={busy}
-                  onClick={() => {
-                    void refresh();
-                    void refreshServices();
-                  }}
-                >
-                  <RefreshCw size={17} />
-                </button>
-                <button
-                  className="secondary"
-                  disabled={!current || current.archived}
-                  onClick={() => setServiceForm('new')}
-                >
-                  <Plus size={16} />
-                  Añadir servicio
-                </button>
-              </div>
-            </div>
-            {!services.items.length ? (
-              <div className="empty-state">
-                <span className="empty-icon">
-                  <Layers3 size={30} />
-                </span>
-                <h3>
-                  {busy
-                    ? 'Cargando infraestructura…'
-                    : current
-                      ? 'Cada servicio cuenta una parte de la historia'
-                      : 'Un punto de partida para todos tus servidores'}
-                </h3>
-                <p>
-                  {current
-                    ? 'Añade Apache Status para observar la actividad web o MRTG para seguir las estadísticas del sistema.'
-                    : 'Crea un servidor y después elige qué servicios quieres monitorizar.'}
-                </p>
-                {!busy && (
-                  <button
-                    className="text-button"
-                    disabled={current?.archived}
-                    onClick={() => (current ? setServiceForm('new') : setServerForm('new'))}
-                  >
-                    {current ? 'Configurar primer servicio' : 'Crear primer servidor'}
-                    <ArrowRight size={17} />
-                  </button>
+                  <strong>{servers.total}</strong>
+                  <small>En este espacio de trabajo</small>
+                </div>
+                <div className="stat">
+                  <span>
+                    Servicios del servidor
+                    <Layers3 size={18} />
+                  </span>
+                  <strong>{services.total}</strong>
+                  <small>{current?.name ?? 'Selecciona o añade un servidor'}</small>
+                </div>
+                <div className="stat">
+                  <span>
+                    Almacenamiento
+                    <Database size={18} />
+                  </span>
+                  <strong className="status-value">
+                    {health?.database === 'ok' ? 'Conectado' : 'Sin verificar'}
+                  </strong>
+                  <small>Configuración persistente en PostgreSQL</small>
+                </div>
+              </section>
+              <section className="foundation-note">
+                <div className="square-icon">
+                  <Radio size={20} />
+                </div>
+                <div>
+                  <strong>Observa Apache y las métricas de MRTG.</strong>
+                  <p>
+                    Ya puedes organizar servidores y servicios. Apache Status ya dispone de recogida
+                    periódica e histórico. Abre «Ver diagnóstico» para consultar las muestras. MRTG
+                    descubre y recoge las páginas con estadísticas numéricas.
+                  </p>
+                </div>
+                <span className="tag">APACHE + MRTG</span>
+              </section>
+              <section className="service-panel">
+                <div className="panel-heading">
+                  <div className="server-title">
+                    <span className="square-icon">
+                      <ServerIcon size={21} />
+                    </span>
+                    <div>
+                      <span className="eyebrow">SERVIDOR SELECCIONADO</span>
+                      <h2>{current?.name ?? 'Añade tu primer servidor'}</h2>
+                      {current?.description && <p className="muted small">{current.description}</p>}
+                    </div>
+                  </div>
+                  {current && (
+                    <div className="panel-actions">
+                      <button
+                        className="icon-button"
+                        aria-label="Editar servidor"
+                        onClick={() => setServerForm(current)}
+                      >
+                        <Pencil size={17} />
+                      </button>
+                      <button
+                        className="icon-button"
+                        aria-label={current.archived ? 'Restaurar servidor' : 'Archivar servidor'}
+                        onClick={() =>
+                          setConfirm({
+                            title: current.archived
+                              ? 'Restaurar este servidor'
+                              : 'Archivar este servidor y pausar sus servicios',
+                            action: archiveServer,
+                          })
+                        }
+                      >
+                        <Archive size={17} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+                {!!current?.tags.length && (
+                  <div className="tags">
+                    {current.tags.map((tag) => (
+                      <span className="tag" key={tag}>
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
                 )}
-              </div>
-            ) : (
-              <div className="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Servicio / endpoint</th>
-                      <th>Tipo</th>
-                      <th>Intervalo</th>
-                      <th>Estado</th>
-                      <th>
-                        <span className="sr-only">Acciones</span>
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {services.items
-                      .filter((x) =>
-                        `${x.name} ${x.url}`.toLowerCase().includes(search.toLowerCase()),
-                      )
-                      .map((service) => (
-                        <tr key={service.id}>
-                          <td>
-                            <div className="service-name">
-                              <span className={`service-icon ${service.kind}`}>
-                                <Globe2 size={18} />
-                              </span>
-                              <div>
-                                <strong>{service.name}</strong>
-                                {(service.kind === 'apache_status' || service.kind === 'mrtg') && (
-                                  <button
-                                    className="secondary"
-                                    onClick={() => setDiagnostic(service)}
-                                  >
-                                    Ver diagnóstico
-                                  </button>
-                                )}
-                                <span className="endpoint" title={service.url}>
-                                  {service.url}
-                                </span>
-                                <small className="revision">
-                                  Revisión {service.revision}
-                                  {service.has_credentials ? ' · Credenciales guardadas' : ''}
-                                </small>
-                              </div>
-                            </div>
-                          </td>
-                          <td>
-                            <span className="type-label">{KIND[service.kind]}</span>
-                          </td>
-                          <td>
-                            <span className="interval">
-                              <Clock3 size={13} />
-                              {service.interval_seconds / 60} min
-                            </span>
-                          </td>
-                          <td>
-                            <span className={`status ${service.status}`}>
-                              <span className="dot" />
-                              {STATUS[service.status]}
-                            </span>
-                          </td>
-                          <td>
-                            <details className="row-menu">
-                              <summary aria-label={`Acciones de ${service.name}`}>
-                                <MoreHorizontal size={20} />
-                              </summary>
-                              <div>
-                                <button onClick={() => setServiceForm(service)}>
-                                  Editar servicio
-                                </button>
-                                <button
-                                  disabled={service.archived || current?.archived}
-                                  onClick={() =>
-                                    changeService(service, { enabled: !service.enabled }).catch(
-                                      fail,
-                                    )
-                                  }
-                                >
-                                  {service.enabled ? 'Pausar' : 'Habilitar'}
-                                </button>
-                                <button
-                                  onClick={() =>
-                                    setConfirm({
-                                      title: service.archived
-                                        ? 'Restaurar este servicio'
-                                        : 'Archivar este servicio',
-                                      action: () =>
-                                        changeService(service, { archived: !service.archived }),
-                                    })
-                                  }
-                                >
-                                  {service.archived ? 'Restaurar' : 'Archivar'}
-                                </button>
-                              </div>
-                            </details>
-                          </td>
+                {current?.archived && (
+                  <div className="info-note">
+                    Servidor archivado. Su configuración se conserva y sus servicios no se
+                    ejecutarán.
+                  </div>
+                )}
+                <div className="toolbar">
+                  <label className="search">
+                    <Search size={17} />
+                    <input
+                      aria-label="Buscar en los servicios de esta página"
+                      placeholder="Buscar en esta página…"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                    />
+                  </label>
+                  <div>
+                    <button
+                      className="icon-button"
+                      aria-label="Actualizar"
+                      disabled={busy}
+                      onClick={() => {
+                        void refresh();
+                        void refreshServices();
+                      }}
+                    >
+                      <RefreshCw size={17} />
+                    </button>
+                    <button
+                      className="secondary"
+                      disabled={!current || current.archived}
+                      onClick={() => setServiceForm('new')}
+                    >
+                      <Plus size={16} />
+                      Añadir servicio
+                    </button>
+                  </div>
+                </div>
+                {!services.items.length ? (
+                  <div className="empty-state">
+                    <span className="empty-icon">
+                      <Layers3 size={30} />
+                    </span>
+                    <h3>
+                      {busy
+                        ? 'Cargando infraestructura…'
+                        : current
+                          ? 'Cada servicio cuenta una parte de la historia'
+                          : 'Un punto de partida para todos tus servidores'}
+                    </h3>
+                    <p>
+                      {current
+                        ? 'Añade Apache Status para observar la actividad web o MRTG para seguir las estadísticas del sistema.'
+                        : 'Crea un servidor y después elige qué servicios quieres monitorizar.'}
+                    </p>
+                    {!busy && (
+                      <button
+                        className="text-button"
+                        disabled={current?.archived}
+                        onClick={() => (current ? setServiceForm('new') : setServerForm('new'))}
+                      >
+                        {current ? 'Configurar primer servicio' : 'Crear primer servidor'}
+                        <ArrowRight size={17} />
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="table-wrap">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Servicio / endpoint</th>
+                          <th>Tipo</th>
+                          <th>Intervalo</th>
+                          <th>Estado</th>
+                          <th>
+                            <span className="sr-only">Acciones</span>
+                          </th>
                         </tr>
-                      ))}
-                  </tbody>
-                </table>
-                {search &&
-                  !services.items.some((x) =>
-                    `${x.name} ${x.url}`.toLowerCase().includes(search.toLowerCase()),
-                  ) && <p className="no-results">No hay servicios que coincidan en esta página.</p>}
-              </div>
-            )}
-            <div className="panel-footer">
-              <span>
-                <ShieldCheck size={14} /> Solo destinos autorizados
-              </span>
-              <div className="pagination">
-                <button
-                  aria-label="Servicios anteriores"
-                  disabled={!serviceOffset}
-                  onClick={() => setServiceOffset((x) => x - 50)}
-                >
-                  <ChevronLeft size={16} />
-                </button>
-                <span>
-                  {services.total
-                    ? `${serviceOffset + 1}–${Math.min(serviceOffset + 50, services.total)} de ${services.total}`
-                    : '0 servicios'}
-                </span>
-                <button
-                  aria-label="Servicios siguientes"
-                  disabled={serviceOffset + 50 >= services.total}
-                  onClick={() => setServiceOffset((x) => x + 50)}
-                >
-                  <ChevronRight size={16} />
-                </button>
-              </div>
-            </div>
-          </section>
+                      </thead>
+                      <tbody>
+                        {services.items
+                          .filter((x) =>
+                            `${x.name} ${x.url}`.toLowerCase().includes(search.toLowerCase()),
+                          )
+                          .map((service) => (
+                            <tr key={service.id}>
+                              <td>
+                                <div className="service-name">
+                                  <span className={`service-icon ${service.kind}`}>
+                                    <Globe2 size={18} />
+                                  </span>
+                                  <div>
+                                    <strong>{service.name}</strong>
+                                    {(service.kind === 'apache_status' ||
+                                      service.kind === 'mrtg') && (
+                                      <button
+                                        className="secondary"
+                                        onClick={() => setDiagnostic(service)}
+                                      >
+                                        Ver diagnóstico
+                                      </button>
+                                    )}
+                                    <span className="endpoint" title={service.url}>
+                                      {service.url}
+                                    </span>
+                                    <small className="revision">
+                                      Revisión {service.revision}
+                                      {service.has_credentials ? ' · Credenciales guardadas' : ''}
+                                    </small>
+                                  </div>
+                                </div>
+                              </td>
+                              <td>
+                                <span className="type-label">{KIND[service.kind]}</span>
+                              </td>
+                              <td>
+                                <span className="interval">
+                                  <Clock3 size={13} />
+                                  {service.interval_seconds / 60} min
+                                </span>
+                              </td>
+                              <td>
+                                <span className={`status ${service.status}`}>
+                                  <span className="dot" />
+                                  {STATUS[service.status]}
+                                </span>
+                              </td>
+                              <td>
+                                <details className="row-menu">
+                                  <summary aria-label={`Acciones de ${service.name}`}>
+                                    <MoreHorizontal size={20} />
+                                  </summary>
+                                  <div>
+                                    <button onClick={() => setServiceForm(service)}>
+                                      Editar servicio
+                                    </button>
+                                    <button
+                                      disabled={service.archived || current?.archived}
+                                      onClick={() =>
+                                        changeService(service, { enabled: !service.enabled }).catch(
+                                          fail,
+                                        )
+                                      }
+                                    >
+                                      {service.enabled ? 'Pausar' : 'Habilitar'}
+                                    </button>
+                                    <button
+                                      onClick={() =>
+                                        setConfirm({
+                                          title: service.archived
+                                            ? 'Restaurar este servicio'
+                                            : 'Archivar este servicio',
+                                          action: () =>
+                                            changeService(service, { archived: !service.archived }),
+                                        })
+                                      }
+                                    >
+                                      {service.archived ? 'Restaurar' : 'Archivar'}
+                                    </button>
+                                  </div>
+                                </details>
+                              </td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                    {search &&
+                      !services.items.some((x) =>
+                        `${x.name} ${x.url}`.toLowerCase().includes(search.toLowerCase()),
+                      ) && (
+                        <p className="no-results">No hay servicios que coincidan en esta página.</p>
+                      )}
+                  </div>
+                )}
+                <div className="panel-footer">
+                  <span>
+                    <ShieldCheck size={14} /> Solo destinos autorizados
+                  </span>
+                  <div className="pagination">
+                    <button
+                      aria-label="Servicios anteriores"
+                      disabled={!serviceOffset}
+                      onClick={() => setServiceOffset((x) => x - 50)}
+                    >
+                      <ChevronLeft size={16} />
+                    </button>
+                    <span>
+                      {services.total
+                        ? `${serviceOffset + 1}–${Math.min(serviceOffset + 50, services.total)} de ${services.total}`
+                        : '0 servicios'}
+                    </span>
+                    <button
+                      aria-label="Servicios siguientes"
+                      disabled={serviceOffset + 50 >= services.total}
+                      onClick={() => setServiceOffset((x) => x + 50)}
+                    >
+                      <ChevronRight size={16} />
+                    </button>
+                  </div>
+                </div>
+              </section>
+            </>
+          )}
           <footer className="content-footer">
             <span>
               Apache Status Monitor <span className="footer-separator">/</span> Open source, bajo tu

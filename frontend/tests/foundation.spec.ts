@@ -59,6 +59,8 @@ test('administrator configures independent services, persists changes and revoke
   await page.getByRole('button', { name: 'Entrar al panel' }).click();
   await expect(page.getByRole('heading', { name: 'Tu infraestructura' })).toBeVisible();
 
+  await page.getByRole('button', { name: 'Configuración', exact: true }).click();
+
   async function server(name: string) {
     await page.getByRole('button', { name: 'Añadir servidor', exact: true }).last().click();
     await page.getByLabel('Nombre del servidor').fill(name);
@@ -89,6 +91,89 @@ test('administrator configures independent services, persists changes and revoke
   }
   await server('Atlas · Producción');
   await service('Apache principal', 'apache_status');
+  const overviewAt = new Date().toISOString();
+  const ram = {
+    value: 20,
+    unit: 'valor de origen',
+    provenance: 'Memoria Física Libre / out',
+    observed_at: overviewAt,
+    source_at: null,
+  };
+  await page.route('**/api/v1/servers/*/analysis?*', (route) =>
+    route.fulfill({
+      json: {
+        state: 'resource_pressure',
+        service_id: 'fixture-service',
+        services: [{ id: 'fixture-service', name: 'Apache principal' }],
+        last_at: overviewAt,
+        learning: { valid_baseline_samples: 180, required_samples: 170 },
+        series: [
+          {
+            at: overviewAt,
+            ram_free: 20,
+            free_slots: 900,
+            domain_active: 20,
+            domain_appearances: 22,
+          },
+        ],
+        metrics: { free_slots: 900 },
+        resources: { ram_free: ram },
+        domains: [{ domain: 'example.test', active: 20, appearances: 22 }],
+        period_rankings: [{ domain: 'example.test', appearances: 300 }],
+        rankings: {
+          ips: [{ ip: '2001:db8::1', count: 20, country: null, asn: null }],
+          posts: [{ domain: 'example.test', ip: '2001:db8::1', path: '/wp-login.php', count: 5 }],
+        },
+        warnings: ['Zona horaria sin verificar'],
+        open_incidents: 1,
+        limitation: 'Slots libres no prueban salud.',
+        geoip: { country: false, asn: false },
+      },
+    }),
+  );
+  await page.route('**/api/v1/servers/*/incidents?*', (route) =>
+    route.fulfill({
+      json: {
+        items: [
+          {
+            id: 'incident-1',
+            subject: 'resource:ram_free',
+            status: 'open',
+            severity: 'critical',
+            opened_at: overviewAt,
+            updated_at: overviewAt,
+            evidence: {
+              value: 20,
+              reference: { median: 100, mad: 0, samples: 12 },
+              note: 'Coincidencia temporal; no demuestra causalidad.',
+              feature: 'ram_free',
+              resources: { ram_free: ram },
+              coincidences: {},
+              domains: [{ domain: 'example.test', active: 20 }],
+            },
+          },
+        ],
+      },
+    }),
+  );
+  await page.getByRole('button', { name: 'Estado del servidor', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Presión de recursos detectada' })).toBeVisible();
+  await expect(page.getByText('Slots libres no prueban salud.', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'example.test', exact: true }).first().click();
+  await expect(page.getByRole('heading', { name: 'Histórico de example.test' })).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect
+    .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
+    .toBe(true);
+  await page.screenshot({ path: testInfo.outputPath('server-status-mobile.png'), fullPage: true });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.getByRole('button', { name: 'Incidentes', exact: true }).click();
+  await expect(page.getByText('Coincidencia temporal; no demuestra causalidad.')).toBeVisible();
+  await page.getByText('Ver evidencias coincidentes', { exact: true }).click();
+  await expect(page.getByText('example.test: 20 workers activos observados')).toBeVisible();
+  await page.getByRole('button', { name: 'Correo', exact: true }).click();
+  await expect(page.getByLabel('Activar avisos por email')).not.toBeChecked();
+  await page.getByRole('button', { name: 'Configuración', exact: true }).click();
   await page.getByRole('button', { name: 'Ver diagnóstico', exact: true }).click();
   await expect(page.getByText('Aún no hay muestras.', { exact: false })).toBeVisible();
   await page.getByRole('dialog').getByLabel('Cerrar', { exact: true }).click();
@@ -241,6 +326,7 @@ test('administrator configures independent services, persists changes and revoke
   await page.getByRole('button', { name: 'Atlas · Producción', exact: true }).click();
   await expect(page.getByRole('row')).toHaveCount(4);
   await page.reload();
+  await page.getByRole('button', { name: 'Configuración', exact: true }).click();
   await expect(
     page
       .getByRole('row')

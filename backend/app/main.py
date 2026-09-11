@@ -15,6 +15,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, object_session
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
+from app.analysis_api import router as analysis_router
 from app.collection import latest
 from app.config import get_settings
 from app.connectors import CONNECTORS
@@ -186,6 +187,7 @@ def create_app() -> FastAPI:
     api.include_router(setup_router)
     api.include_router(observations_router)
     api.include_router(mrtg_router)
+    api.include_router(analysis_router)
 
     @api.post("/auth/login")
     def login(

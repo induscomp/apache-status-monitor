@@ -166,6 +166,9 @@ class Detail(HTMLParser):
                     for column, content in zip(self.columns, self.row, strict=True):
                         if column in {"max", "average", "current"} and (number := numeric(content)):
                             key = (self.window, channel, "maximum" if column == "max" else column)
+                            if key in self.values:
+                                self.values[key]["display_label"] = self.row[0][:120]
+                                self.values[key]["display_unit"] = number[1][:80]
                             self.values.setdefault(
                                 key,
                                 {

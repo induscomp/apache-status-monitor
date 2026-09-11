@@ -2,7 +2,7 @@
 
 Monitor open source para organizar varios servidores y sus servicios Apache Status y MRTG.
 
-**SMON-002 en desarrollo: recogida de Apache operativa.** Incluye autenticación con TOTP, administración multiservidor, lectura periódica de Apache Status y MRTG, histórico y detalle de workers. **MRTG también está operativo**, con descubrimiento de páginas, selección de métricas y estadísticas numéricas. Consulta el [alcance y la interpretación del diagnóstico](docs/apache.md).
+Monitorización cada cinco minutos con **dos únicas fuentes remotas: Apache Status público y MRTG público**. Incluye estado del servidor, gráficos temporales, rankings por dominio/IP/ruta, correlación con memoria/carga e incidentes basados en el histórico de cada dominio. Correo SMTP configurable y GeoIP local opcional. Consulta [uso, interpretación y límites](docs/analysis.md).
 
 ## Incluye
 
@@ -30,8 +30,9 @@ Abre **http://localhost:8187** y completa el asistente web: copia la clave del a
 
 ## Arquitectura y documentación
 
-React + TypeScript + Vite → Nginx → FastAPI → PostgreSQL. Un worker independiente con APScheduler mantiene el estado del planificador; los recolectores están pendientes. Cloudflared tiene un perfil opcional dedicado.
+React + TypeScript + Vite → Nginx → FastAPI → PostgreSQL. Un worker independiente con APScheduler recoge Apache y MRTG, correlaciona muestras, evalúa incidentes y procesa el correo configurado. Cloudflared tiene un perfil opcional dedicado.
 
+- [Estado del servidor, incidentes, correo y GeoIP](docs/analysis.md)
 - [Arquitectura y seguridad](docs/architecture.md)
 - [Instalación y recuperación](docs/deployment.md)
 - [Desarrollo y pruebas](docs/development.md)

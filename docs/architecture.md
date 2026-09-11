@@ -1,12 +1,12 @@
-# Arquitectura de SMON-001
+# Arquitectura
 
 ## Modelo y procesos
 
-Un servidor agrupa varios servicios. Cada servicio tiene tipo (`apache_status` o `mrtg`), nombre, URL, intervalo (300 segundos por defecto, mínimo 60), opciones, credenciales opcionales, estado y revisión. Se admiten varios servicios del mismo tipo. Los nombres de servidor son únicos; los de servicio son únicos dentro de su servidor.
+Un servidor agrupa varios servicios. Cada servicio tiene tipo (`apache_status` o `mrtg`), nombre, URL, intervalo (300 segundos), opciones, credenciales opcionales, estado y revisión. Se admiten varios servicios del mismo tipo. Los nombres de servidor son únicos; los de servicio son únicos dentro de su servidor.
 
 PostgreSQL almacena `servers`, `services`, `service_revisions`, `admins`, `auth_sessions`, `rate_buckets`, `audit_events` y `component_heartbeats`. Cada edición de servicio crea una revisión sin credenciales ni ciphertext. Archivar un servidor suspende efectivamente todos sus servicios conservando sus estados individuales. No hay borrado físico en la API.
 
-Los futuros snapshots, dominios, IP y alertas se asociarán al servicio y su revisión. Un mismo dominio en dos servicios no compartirá contadores ni referencias estadísticas.
+Los snapshots, dominios, IP e incidentes se asocian al servicio y su revisión. Un mismo dominio en dos servicios no compartirá contadores ni referencias estadísticas.
 
 | Proceso | Responsabilidad |
 |---|---|
@@ -19,7 +19,7 @@ Los futuros snapshots, dominios, IP y alertas se asociarán al servicio y su rev
 
 Solo `migrate` y PostgreSQL reciben la credencial propietaria. El rol de aplicación `smon` no puede crear roles, bases o tablas ni es superusuario. El propietario aplica migraciones y concede permisos de datos.
 
-Los descriptores de conectores declaran `implemented=false`. No hay recogida remota, rutas públicas para ejecutar tareas ni carga de plugins arbitrarios.
+Los conectores Apache y MRTG están implementados. El worker recoge las dos fuentes públicas y ejecuta análisis y notificaciones; no hay carga de plugins arbitrarios. Ver [Apache](apache.md), [MRTG](mrtg.md) y [análisis](analysis.md).
 
 ## API implementada
 
@@ -41,7 +41,7 @@ Prefijo `/api/v1`. Access obligatorio en producción; recursos privados requiere
 
 Listados `{items,total}` con `offset=0`, `limit=50`, máximo 100. PUT recibe configuración editable completa; tipo y servidor del servicio son inmutables. Cuerpos limitados a 16 KiB, incluidos mensajes chunked. Los errores no reflejan entradas.
 
-`/health/live` y `/health/ready` son probes internos mínimos bloqueados por Nginx. `/healthz` comprueba solo Nginx. Series, dominios, eventos y alertas tendrán API en sus hitos.
+`/health/live` y `/health/ready` son probes internos mínimos bloqueados por Nginx. `/healthz` comprueba solo Nginx. Series, dominios e incidentes tienen API privada descrita en [análisis](analysis.md); los eventos manuales están pendientes.
 
 ## Autenticación
 
@@ -59,9 +59,9 @@ Credenciales de endpoints y secreto TOTP cifrados con Fernet y clave externa. Nu
 
 Orígenes exactos mediante `SMON_ALLOWED_MONITOR_ORIGINS`; HTTP requiere además `SMON_ALLOWED_HTTP_ORIGINS`. Se rechazan credenciales/query en URL, esquemas ajenos a HTTP(S), literales no públicos y caracteres ambiguos. Basic solo se permite con HTTPS.
 
-**Esta es validación de configuración, no un transporte SSRF completo.** SMON-002 deberá validar todas las resoluciones IPv4/IPv6 y conectar a una IP aprobada conservando TLS/hostname, bloquear redes internas/metadatos, desactivar redirecciones/proxies ambientales y limitar tamaño/tiempo/concurrencia. No habrá recogida hasta probar esos controles.
+El transporte valida DNS IPv4/IPv6, rechaza redes internas y conecta a una IP aprobada conservando TLS/hostname. No sigue redirecciones ni proxies ambientales. Limita tamaño, tiempo y concurrencia. Apache y MRTG tienen recogidas independientes, bloqueo por servicio e idempotencia.
 
-Estado de servicio: pendiente, pausado o archivado. Fechas de intento, éxito y próxima ejecución son nulas. El heartbeat prueba el worker local, no disponibilidad remota.
+El estado de un servicio refleja frescura, error, pausa o archivo; su disponibilidad no equivale a salud del servidor. Las métricas, series e incidentes conservan servicio y revisión en PostgreSQL. La presión de recursos se evalúa con MRTG incluso cuando Apache falla.
 
 Logs de aplicación JSON con evento, método y duración; sin URL, query, cuerpos o tokens. Logs de acceso Uvicorn/Nginx desactivados. Auditoría administrativa persistente en PostgreSQL.
 

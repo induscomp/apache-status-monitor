@@ -23,7 +23,7 @@ def clean_database():
     with session_factory()() as db:
         db.execute(
             text(
-                "TRUNCATE admins, servers, audit_events, rate_buckets, component_heartbeats CASCADE"
+                "TRUNCATE notification_config, admins, servers, audit_events, rate_buckets, component_heartbeats CASCADE"
             )
         )
         db.commit()

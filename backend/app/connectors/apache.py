@@ -62,10 +62,24 @@ def parse_auto(body: str) -> dict:
         "BytesPerSec",
         "BytesPerReq",
         "CPULoad",
+        "Load1",
+        "Load5",
+        "Load15",
+        "DurationPerReq",
+        "TotalDuration",
     }
     result = {}
     for line in body.splitlines():
         key, sep, value = line.partition(":")
+        if key == "Total Duration":
+            key = "TotalDuration"
+        if sep and key == "Scoreboard":
+            counts = Counter(value.strip())
+            result.update(
+                FreeSlots=counts["."],
+                ScoreboardIdle=counts["_"],
+                ActiveRequests=counts["R"] + counts["W"],
+            )
         if sep and key in allowed and (n := number(value.strip())) is not None:
             result[key] = n
     if not result:
@@ -140,6 +154,9 @@ def parse_html(body: str) -> dict:
             "observed_workers": len(workers),
             "active_workers": sum(w["observation"] == "current" for w in workers),
             "states": dict(states),
+            "idle_workers": states["_"],
+            "free_slots": states["."],
+            "active_requests": states["R"] + states["W"],
         },
         "warnings": list(dict.fromkeys(warnings)),
     }

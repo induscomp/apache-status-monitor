@@ -6,11 +6,14 @@ from apscheduler.schedulers.blocking import BlockingScheduler
 from sqlalchemy import delete
 from sqlalchemy.dialects.postgresql import insert
 
+from app.analysis import retention as analysis_retention
+from app.analysis import run as analyze
 from app.collection import collect_due, retain_observations
 from app.db import session_factory
 from app.models import AuthSession, ComponentHeartbeat, RateBucket, now
 from app.mrtg_collection import collect_due as collect_mrtg
 from app.mrtg_collection import retention as retain_mrtg
+from app.notifications import deliver
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logging.getLogger("apscheduler").setLevel(logging.WARNING)
@@ -46,6 +49,11 @@ def cleanup_auth():
 def main():
     scheduler = BlockingScheduler(
         timezone="UTC", job_defaults={"max_instances": 1, "coalesce": True}
+    )
+    scheduler.add_job(analyze, "interval", seconds=15, id="analysis", next_run_time=now())
+    scheduler.add_job(deliver, "interval", seconds=30, id="email")
+    scheduler.add_job(
+        analysis_retention, "interval", hours=1, id="analysis-retention", next_run_time=now()
     )
     scheduler.add_job(heartbeat, "interval", seconds=30, id="heartbeat", next_run_time=now())
     scheduler.add_job(collect_mrtg, "interval", seconds=15, id="mrtg", next_run_time=now())

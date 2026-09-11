@@ -46,7 +46,7 @@ class ServiceInput(StrictModel):
     name: Name
     kind: Literal["apache_status", "mrtg"]
     url: str = Field(min_length=1, max_length=2048)
-    interval_seconds: int = Field(default=300, ge=60, le=86400)
+    interval_seconds: Literal[300] = 300
     enabled: bool = True
     options: ServiceOptions = ServiceOptions()
     credentials: Credentials | None = None
@@ -55,7 +55,7 @@ class ServiceInput(StrictModel):
 class ServiceUpdate(StrictModel):
     name: Name
     url: str = Field(min_length=1, max_length=2048)
-    interval_seconds: int = Field(default=300, ge=60, le=86400)
+    interval_seconds: Literal[300] = 300
     enabled: bool = True
     archived: bool = False
     options: ServiceOptions = ServiceOptions()
