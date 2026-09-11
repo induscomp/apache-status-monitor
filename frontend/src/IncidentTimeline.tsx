@@ -57,7 +57,9 @@ export function IncidentTimeline({
             prioridad alta · <strong>{summary.resolved}</strong> resueltas
           </p>
         </div>
-        <button onClick={openIncidents}>Ver incidentes</button>
+        <button className="secondary" onClick={openIncidents}>
+          Ver incidentes
+        </button>
       </div>
       <div
         className="incident-timeline"

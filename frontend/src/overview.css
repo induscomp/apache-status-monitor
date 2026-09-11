@@ -225,3 +225,38 @@
     padding: 8px;
   }
 }
+.overview-controls label {
+  display: grid;
+  gap: 7px;
+  font-size: 13px;
+}
+.overview-controls select {
+  min-height: 40px;
+  max-width: 100%;
+  padding: 8px 12px;
+  background: white;
+  color: #243e36;
+  border: 1px solid #c5d6cc;
+  border-radius: 8px;
+}
+.overview-table button {
+  padding: 4px 0;
+  background: none;
+  color: #176b59;
+  cursor: pointer;
+}
+.overview-table button:hover {
+  text-decoration: underline;
+}
+.incident-time-detail::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -10px;
+  height: 10px;
+}
+.overview-controls button[aria-pressed='true']:hover {
+  background: #125c4d;
+  color: white;
+}

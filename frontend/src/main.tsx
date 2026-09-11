@@ -717,7 +717,12 @@ function Workspace({ session, expired }: { session: Session; expired: () => void
                 ['mail', 'Correo'],
               ] as const
             ).map(([key, label]) => (
-              <button key={key} aria-pressed={view === key} onClick={() => setView(key)}>
+              <button
+                className="secondary"
+                key={key}
+                aria-pressed={view === key}
+                onClick={() => setView(key)}
+              >
                 {label}
               </button>
             ))}
