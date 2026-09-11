@@ -117,3 +117,43 @@ class ApacheObservation(Base):
     warnings: Mapped[list] = mapped_column(JSONB, default=list)
     workers: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     raw_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class MrtgDiscovery(Base):
+    __tablename__ = "mrtg_discoveries"
+    service_id: Mapped[str] = mapped_column(ForeignKey("services.id"), primary_key=True)
+    revision: Mapped[int] = mapped_column(default=0)
+    attempted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    succeeded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    requested: Mapped[bool] = mapped_column(default=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class MrtgMetric(Base):
+    __tablename__ = "mrtg_metrics"
+    __table_args__ = (UniqueConstraint("service_id", "url"),)
+    id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=identifier)
+    service_id: Mapped[str] = mapped_column(ForeignKey("services.id"), index=True)
+    url: Mapped[str] = mapped_column(String(2048))
+    name: Mapped[str] = mapped_column(String(200))
+    selected: Mapped[bool] = mapped_column(default=True)
+    present: Mapped[bool] = mapped_column(default=True)
+    revision: Mapped[int] = mapped_column(default=1)
+    configuration: Mapped[dict] = mapped_column(JSONB, default=dict)
+
+
+class MrtgObservation(Base):
+    __tablename__ = "mrtg_observations"
+    id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=identifier)
+    metric_id: Mapped[str] = mapped_column(ForeignKey("mrtg_metrics.id"), index=True)
+    service_id: Mapped[str] = mapped_column(ForeignKey("services.id"), index=True)
+    revision: Mapped[int] = mapped_column()
+    metric_revision: Mapped[int] = mapped_column()
+    configuration: Mapped[dict] = mapped_column(JSONB, default=dict)
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, index=True)
+    source_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    source_time_text: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    status: Mapped[str] = mapped_column(String(20))
+    values: Mapped[list] = mapped_column(JSONB, default=list)
+    warnings: Mapped[list] = mapped_column(JSONB, default=list)
+    raw_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)

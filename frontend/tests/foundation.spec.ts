@@ -81,7 +81,7 @@ test('administrator configures independent services, persists changes and revoke
       );
     if (kind === 'mrtg')
       await expect(
-        page.getByText('MRTG se leerá siguiendo los enlaces', { exact: false }),
+        page.getByText('MRTG se lee siguiendo los enlaces', { exact: false }),
       ).toBeVisible();
     await page.getByRole('button', { name: 'Guardar servicio' }).click();
     await expect(page.getByRole('dialog')).toHaveCount(0);
@@ -141,6 +141,89 @@ test('administrator configures independent services, persists changes and revoke
   await page.unroute('**/api/v1/observations/fixture?offset=0');
   await service('Apache secundario', 'apache_status');
   await service('Estadísticas del sistema', 'mrtg');
+  const mrtgSample = {
+    id: 'mrtg-sample',
+    observed_at: '2026-09-11T12:00:00Z',
+    source_at: null,
+    source_time_text: 'Friday, 11 September 2026 at 14:00',
+    status: 'partial',
+    metric_revision: 1,
+    configuration: {},
+    warnings: ['Semántica pendiente de interpretación.'],
+    values: [
+      {
+        window: 'd',
+        channel: 'in',
+        statistic: 'current',
+        value: 500,
+        source: 'comment',
+        source_unit: null,
+      },
+      {
+        window: 'w',
+        channel: 'in',
+        statistic: 'average',
+        value: 300,
+        source: 'comment',
+        source_unit: null,
+      },
+    ],
+  };
+  await page.route('**/api/v1/services/*/mrtg', (route) =>
+    route.fulfill({
+      json: {
+        discovery: {
+          attempted_at: '2026-09-11T12:00:00Z',
+          succeeded_at: '2026-09-11T12:00:00Z',
+          requested: false,
+          error: null,
+        },
+        items: [
+          {
+            id: 'mrtg-fixture',
+            name: 'Carga del sistema',
+            url: 'http://metrics.example.test/mrtg/load.html',
+            selected: true,
+            present: true,
+            revision: 1,
+            configuration: {},
+            latest: mrtgSample,
+          },
+        ],
+      },
+    }),
+  );
+  await page.route('**/api/v1/mrtg/metrics/mrtg-fixture/observations', (route) =>
+    route.fulfill({ json: { items: [mrtgSample] } }),
+  );
+  let savedMetric: { selected: boolean; factor: number } | undefined;
+  await page.route('**/api/v1/mrtg/metrics/mrtg-fixture', (route) => {
+    savedMetric = route.request().postDataJSON();
+    return route.fulfill({ json: { revision: 2 } });
+  });
+  await page
+    .getByRole('row')
+    .filter({ hasText: 'Estadísticas del sistema' })
+    .getByRole('button', { name: 'Ver diagnóstico' })
+    .click();
+  const mrtgDialog = page.getByRole('dialog');
+  await expect(mrtgDialog.getByText('500', { exact: true })).toBeVisible();
+  await mrtgDialog.getByLabel('Ventana MRTG').selectOption('w');
+  await expect(mrtgDialog.getByText('300', { exact: true })).toBeVisible();
+  await expect(mrtgDialog.getByText('500', { exact: true })).toHaveCount(0);
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath('mrtg-mobile.png'), fullPage: true });
+  await mrtgDialog.getByLabel('Monitorizar esta página').uncheck();
+  await mrtgDialog.getByRole('button', { name: 'Guardar métrica', exact: true }).click();
+  await expect(mrtgDialog.getByRole('status')).toContainText('Configuración guardada');
+  expect(savedMetric?.selected).toBe(false);
+  expect(savedMetric?.factor).toBe(1);
+  await mrtgDialog.getByLabel('Cerrar', { exact: true }).click();
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.unroute('**/api/v1/services/*/mrtg');
+  await page.unroute('**/api/v1/mrtg/metrics/mrtg-fixture/observations');
+  await page.unroute('**/api/v1/mrtg/metrics/mrtg-fixture');
   const apache = page.getByRole('row').filter({ hasText: 'Apache principal' });
   await apache.getByLabel('Acciones de Apache principal').click();
   await apache.getByRole('button', { name: 'Pausar', exact: true }).click();
@@ -149,7 +232,7 @@ test('administrator configures independent services, persists changes and revoke
     page
       .getByRole('row')
       .filter({ hasText: 'Estadísticas del sistema' })
-      .getByText('Pendiente de recolector'),
+      .getByText('Esperando primera recogida'),
   ).toBeVisible();
 
   await server('Boreal · Staging');

@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session, defer
 
 from app.config import get_settings
 from app.db import get_db
-from app.models import ApacheObservation, AuditEvent, now
+from app.models import ApacheObservation, AuditEvent, MrtgObservation, now
 from app.schemas import Login
 from app.security import (
     authenticated,
@@ -89,7 +89,9 @@ def original(
         raise HTTPException(
             401, "Confirma tu contraseña y un código actual para consultar el original."
         )
-    item = db.get(ApacheObservation, str(observation_id))
+    item = db.get(ApacheObservation, str(observation_id)) or db.get(
+        MrtgObservation, str(observation_id)
+    )
     if not item or not item.raw_encrypted or item.observed_at < now() - timedelta(days=7):
         raise HTTPException(404, "Original no disponible o vencido.")
     content = settings.cipher().decrypt(item.raw_encrypted.encode()).decode()

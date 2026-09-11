@@ -27,6 +27,7 @@ import {
 import { api, ApiError } from './api';
 import { Setup } from './Setup';
 import { ApacheDiagnostics } from './ApacheDiagnostics';
+import { MrtgDiagnostics } from './MrtgDiagnostics';
 import type { Health, Page, Server, Service, Session } from './api';
 import './styles.css';
 
@@ -385,7 +386,7 @@ function ServiceForm({
         </label>
         {kind === 'mrtg' && (
           <p className="info-note">
-            MRTG se leerá siguiendo los enlaces de las imágenes hasta las páginas con estadísticas
+            MRTG se lee siguiendo los enlaces de las imágenes hasta las páginas con estadísticas
             numéricas. El recolector se incorporará en SMON-004.
           </p>
         )}
@@ -640,7 +641,7 @@ function Workspace({ session, expired }: { session: Session; expired: () => void
         )}
         <div className="sidebar-bottom">
           <div className="foundation-badge">
-            <span className="dot" /> Apache · Histórico
+            <span className="dot" /> Apache y MRTG · Histórico
           </div>
           <div className="account">
             <div className="avatar">A</div>
@@ -744,14 +745,14 @@ function Workspace({ session, expired }: { session: Session; expired: () => void
               <Radio size={20} />
             </div>
             <div>
-              <strong>Observa la actividad de Apache.</strong>
+              <strong>Observa Apache y las métricas de MRTG.</strong>
               <p>
                 Ya puedes organizar servidores y servicios. Apache Status ya dispone de recogida
                 periódica e histórico. Abre «Ver diagnóstico» para consultar las muestras. MRTG
-                sigue pendiente de recolector.
+                descubre y recoge las páginas con estadísticas numéricas.
               </p>
             </div>
-            <span className="tag">DIAGNÓSTICO APACHE</span>
+            <span className="tag">APACHE + MRTG</span>
           </section>
           <section className="service-panel">
             <div className="panel-heading">
@@ -893,7 +894,7 @@ function Workspace({ session, expired }: { session: Session; expired: () => void
                               </span>
                               <div>
                                 <strong>{service.name}</strong>
-                                {service.kind === 'apache_status' && (
+                                {(service.kind === 'apache_status' || service.kind === 'mrtg') && (
                                   <button
                                     className="secondary"
                                     onClick={() => setDiagnostic(service)}
@@ -1012,7 +1013,11 @@ function Workspace({ session, expired }: { session: Session; expired: () => void
       </div>
       {diagnostic && (
         <Dialog title={`Diagnóstico · ${diagnostic.name}`} close={() => setDiagnostic(null)}>
-          <ApacheDiagnostics serviceId={diagnostic.id} />
+          {diagnostic.kind === 'mrtg' ? (
+            <MrtgDiagnostics serviceId={diagnostic.id} csrf={session.csrf_token} />
+          ) : (
+            <ApacheDiagnostics serviceId={diagnostic.id} />
+          )}
         </Dialog>
       )}
       {serverForm && (

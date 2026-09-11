@@ -2,7 +2,7 @@
 
 Monitor open source para organizar varios servidores y sus servicios Apache Status y MRTG.
 
-**SMON-002 en desarrollo: recogida de Apache operativa.** Incluye autenticación con TOTP, administración multiservidor, lectura periódica de Apache Status, histórico y detalle de workers. **MRTG todavía no tiene recolector.** Consulta el [alcance y la interpretación del diagnóstico](docs/apache.md).
+**SMON-002 en desarrollo: recogida de Apache operativa.** Incluye autenticación con TOTP, administración multiservidor, lectura periódica de Apache Status y MRTG, histórico y detalle de workers. **MRTG también está operativo**, con descubrimiento de páginas, selección de métricas y estadísticas numéricas. Consulta el [alcance y la interpretación del diagnóstico](docs/apache.md).
 
 ## Incluye
 
@@ -36,7 +36,7 @@ React + TypeScript + Vite → Nginx → FastAPI → PostgreSQL. Un worker indepe
 - [Instalación y recuperación](docs/deployment.md)
 - [Desarrollo y pruebas](docs/development.md)
 - [Plan de hitos](docs/roadmap.md)
-- [Recorrido del futuro conector MRTG](docs/mrtg.md)
+- [Recogida y diagnóstico de MRTG](docs/mrtg.md)
 - [Contribuir](CONTRIBUTING.md) · [Vulnerabilidades](SECURITY.md)
 
 [Licencia MIT](LICENSE). Proyecto independiente, sin afiliación con Apache Software Foundation.

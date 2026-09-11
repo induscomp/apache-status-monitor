@@ -1,6 +1,6 @@
 # Recogida y diagnóstico de Apache Status
 
-La primera entrega de SMON-002 consulta los servicios Apache habilitados desde el worker, respetando el intervalo configurado (300 segundos por defecto). MRTG continúa pendiente. Abre **Ver diagnóstico** en la fila de un servicio para consultar las últimas 50 muestras y sus workers paginados. **Actualizar histórico** vuelve a leer la base de datos; no fuerza una petición remota.
+La primera entrega de SMON-002 consulta los servicios Apache habilitados desde el worker, respetando el intervalo configurado (300 segundos por defecto). MRTG también dispone de [recogida numérica](mrtg.md), en un trabajo independiente. Abre **Ver diagnóstico** en la fila de un servicio para consultar las últimas 50 muestras y sus workers paginados. **Actualizar histórico** vuelve a leer la base de datos; no fuerza una petición remota.
 
 Se conservan servicio, fecha UTC y revisión en cada intento, también cuando falla. Estados: esperando primera recogida, correcto, parcial, error o desactualizado. Un intervalo sin muestras no se convierte en cero tráfico. Se advierte de huecos respecto a la última muestra válida y de descensos de uptime o contadores que indican reinicio o reinicialización. Los contadores no se comparan entre revisiones diferentes.
 

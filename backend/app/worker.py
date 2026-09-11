@@ -9,6 +9,8 @@ from sqlalchemy.dialects.postgresql import insert
 from app.collection import collect_due, retain_observations
 from app.db import session_factory
 from app.models import AuthSession, ComponentHeartbeat, RateBucket, now
+from app.mrtg_collection import collect_due as collect_mrtg
+from app.mrtg_collection import retention as retain_mrtg
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logging.getLogger("apscheduler").setLevel(logging.WARNING)
@@ -46,10 +48,12 @@ def main():
         timezone="UTC", job_defaults={"max_instances": 1, "coalesce": True}
     )
     scheduler.add_job(heartbeat, "interval", seconds=30, id="heartbeat", next_run_time=now())
+    scheduler.add_job(collect_mrtg, "interval", seconds=15, id="mrtg", next_run_time=now())
+    scheduler.add_job(retain_mrtg, "interval", hours=1, id="mrtg-retention", next_run_time=now())
     scheduler.add_job(collect_due, "interval", seconds=15, id="apache", next_run_time=now())
     scheduler.add_job(retain_observations, "interval", hours=1, id="retention", next_run_time=now())
     scheduler.add_job(cleanup_auth, "interval", hours=1, id="cleanup_auth")
-    logger.info(json.dumps({"event": "scheduler_started", "collectors": "apache_status"}))
+    logger.info(json.dumps({"event": "scheduler_started", "collectors": "apache_status,mrtg"}))
     try:
         scheduler.start()
     except KeyboardInterrupt, SystemExit:

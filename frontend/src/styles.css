@@ -1406,3 +1406,17 @@ dialog:has(.apache-diagnostics) {
   display: block;
   margin-top: 8px;
 }
+
+.mrtg-diagnostics label.checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.mrtg-diagnostics input[type='checkbox'] {
+  width: auto;
+  margin: 0;
+  accent-color: #146958;
+}
+.mrtg-diagnostics > button {
+  margin: 0 8px 8px 0;
+}

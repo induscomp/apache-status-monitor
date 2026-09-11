@@ -28,6 +28,8 @@ from app.models import (
     ServiceRevision,
     now,
 )
+from app.mrtg_api import router as mrtg_router
+from app.mrtg_collection import service_status as mrtg_service_status
 from app.observations import router as observations_router
 from app.schemas import Login, ServerInput, ServerUpdate, ServiceInput, ServiceUpdate
 from app.security import (
@@ -183,6 +185,7 @@ def create_app() -> FastAPI:
     api = APIRouter(prefix="/api/v1", dependencies=[Depends(access_identity)])
     api.include_router(setup_router)
     api.include_router(observations_router)
+    api.include_router(mrtg_router)
 
     @api.post("/auth/login")
     def login(
@@ -271,7 +274,7 @@ def create_app() -> FastAPI:
             else "unavailable",
             "scheduler_last_seen": heartbeat.seen_at if heartbeat else None,
             "apache_collector": "available",
-            "mrtg_collector": "pending",
+            "mrtg_collector": "available",
             "email": "not_configured",
         }
 
@@ -292,7 +295,7 @@ def create_app() -> FastAPI:
             else None
         )
         success = latest(object_session(service), service.id, success=True) if last else None
-        status = "waiting" if service.kind == "apache_status" else "pending"
+        status = "waiting"
         if last:
             status = last.status
             if (
@@ -300,6 +303,8 @@ def create_app() -> FastAPI:
                 or last.observed_at + timedelta(seconds=service.interval_seconds * 2) < now()
             ):
                 status = "stale"
+        if service.kind == "mrtg" and service.id:
+            status, last, success = mrtg_service_status(object_session(service), service)
         return {
             "id": service.id,
             "server_id": service.server_id,
@@ -324,7 +329,7 @@ def create_app() -> FastAPI:
             else None,
             "capabilities": ["workers", "global_metrics"]
             if service.kind == "apache_status"
-            else [],
+            else ["discovery", "numeric_statistics"],
             "created_at": service.created_at,
         }
 

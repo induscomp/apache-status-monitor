@@ -28,6 +28,9 @@ CONNECTORS = {
         "apache_status", "Apache Status", "Workers, dominios y actividad observada de Apache.", True
     ),
     "mrtg": ConnectorDescriptor(
-        "mrtg", "MRTG", "Índice → enlaces de imágenes → estadísticas de las páginas de detalle."
+        "mrtg",
+        "MRTG",
+        "Índice → enlaces de imágenes → estadísticas de las páginas de detalle.",
+        True,
     ),
 }

@@ -49,11 +49,7 @@ def test_multiple_servers_and_same_connector_type(logged_in):
     a_services = logged_in.get(f"/api/v1/servers/{a['id']}/services").json()
     b_services = logged_in.get(f"/api/v1/servers/{b['id']}/services").json()
     assert a_services["total"] == 3 and b_services["total"] == 1
-    assert all(
-        x["server_id"] == a["id"]
-        and x["status"] == ("waiting" if x["kind"] == "apache_status" else "pending")
-        for x in a_services["items"]
-    )
+    assert all(x["server_id"] == a["id"] and x["status"] == "waiting" for x in a_services["items"])
     assert all(
         x["last_attempt_at"] is None and x["next_run_at"] is None for x in a_services["items"]
     )
@@ -158,7 +154,7 @@ def test_pagination_input_validation_and_pending_health(logged_in):
     assert health["scheduler"] == "unavailable"
     connectors = logged_in.get("/api/v1/connectors").json()
     assert {x["kind"] for x in connectors} == {"apache_status", "mrtg"}
-    assert {x["kind"] for x in connectors if x["implemented"]} == {"apache_status"}
+    assert {x["kind"] for x in connectors if x["implemented"]} == {"apache_status", "mrtg"}
 
 
 def test_worker_only_updates_heartbeat_and_cleans_auth(logged_in):
@@ -168,4 +164,4 @@ def test_worker_only_updates_heartbeat_and_cleans_auth(logged_in):
     cleanup_auth()
     health = logged_in.get("/api/v1/health").json()
     assert health["scheduler"] == "ok"
-    assert health["apache_collector"] == "available" and health["mrtg_collector"] == "pending"
+    assert health["apache_collector"] == "available" and health["mrtg_collector"] == "available"

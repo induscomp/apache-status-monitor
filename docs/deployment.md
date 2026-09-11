@@ -55,7 +55,7 @@ SMON_ALLOWED_MONITOR_ORIGINS=["https://web.example.com","http://metrics.example.
 SMON_ALLOWED_HTTP_ORIGINS=["http://metrics.example.com"]
 ```
 
-Son orígenes exactos sin rutas. Ejecuta Compose `up -d` con los mismos archivos tras cambiarlos. Crea el servidor y servicios en la web con URL completas. MRTG recibe el índice; su futuro conector seguirá los enlaces de las imágenes.
+Son orígenes exactos sin rutas. Ejecuta Compose `up -d` con los mismos archivos tras cambiarlos. Crea el servidor y servicios en la web con URL completas. MRTG recibe el índice; el conector sigue los enlaces de las imágenes a páginas HTML del mismo origen y directorio.
 
 URL sin credenciales/query/fragmento. Apache `?auto` se configura aparte. Credenciales opcionales cifradas y solo con HTTPS; campos vacíos al editar conservan las anteriores, y la casilla de borrado las elimina.
 
@@ -82,7 +82,7 @@ docker compose -f compose.yaml -f compose.local.yaml exec backend python -m app.
 docker compose -f compose.yaml -f compose.local.yaml exec backend python -m app.cli reset-mfa
 ```
 
-En producción omite el archivo local. Migración debe finalizar con código 0; el worker publica heartbeat. Apache recoge según el intervalo configurado; MRTG sigue pendiente. Consulta [diagnóstico Apache](apache.md).
+En producción omite el archivo local. Migración debe finalizar con código 0; el worker publica heartbeat. Apache recoge según el intervalo configurado; MRTG descubre y recoge las páginas numéricas del índice. Consulta [diagnóstico Apache](apache.md).
 
 Cambiar contraseña/MFA exige contraseña actual y revoca sesiones. Un código de recuperación permite login una vez; no restablece automáticamente el autenticador. No hay recuperación pública ni usuario oculto.
 
