@@ -154,12 +154,18 @@ function Login({
               <input
                 name="code"
                 autoComplete="one-time-code"
+                aria-describedby="login-code-help"
                 required
                 minLength={6}
                 maxLength={64}
                 spellCheck={false}
               />
             </label>
+            <p id="login-code-help" className="setup-help">
+              Abre tu aplicación autenticadora y escribe los seis dígitos de la cuenta Apache Status
+              Monitor. Cambian cada 30 segundos. También puedes usar uno de los códigos de
+              recuperación guardados al crear el usuario.
+            </p>
             {error && (
               <p role="alert" className="error">
                 {error}
@@ -174,12 +180,26 @@ function Login({
             <ShieldCheck size={17} /> Sesión protegida con verificación en dos pasos.
           </p>
           <details className="setup-help">
-            <summary>Primera instalación o recuperación de acceso</summary>
+            <summary>¿No tienes configurado el autenticador?</summary>
             <p>
-              El administrador se crea desde la terminal con{' '}
-              <code>python -m app.cli create-admin</code>. Para recuperar TOTP, utiliza un código de
-              recuperación y después <code>python -m app.cli reset-mfa</code> desde Kakarot.
-              Consulta la guía de despliegue del proyecto.
+              Durante el alta, la terminal muestra una clave secreta para añadir una cuenta en tu
+              aplicación autenticadora: elige clave manual y tipo basado en tiempo (TOTP).
+            </p>
+            <p>
+              Si ya creaste el usuario pero perdiste esa cuenta, ejecuta desde la carpeta del
+              proyecto en Kakarot, con el despliegue local:
+            </p>
+            <p>
+              <code>
+                docker compose -f compose.yaml -f compose.local.yaml exec backend python -m app.cli
+                reset-mfa
+              </code>
+            </p>
+            <p>
+              Te pedirá tu contraseña actual y te guiará para registrar una nueva clave. Puedes
+              hacerlo sin iniciar sesión en la web. Al completarlo se sustituyen los códigos de
+              recuperación y se cierran las sesiones abiertas. Guarda los nuevos códigos en tu
+              gestor de contraseñas.
             </p>
           </details>
         </div>

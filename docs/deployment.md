@@ -11,9 +11,27 @@ docker compose -f compose.yaml -f compose.local.yaml exec backend python -m app.
 
 Secretos creados una vez, sin sobrescribir, modo 0600 y carpeta 0700. Ajusta SMON_UID/SMON_GID para que backend/worker puedan leerlos. Nunca pongas secretos en chat, argumentos del shell, Git o issues.
 
-El alta solicita email, contraseña (mínimo 14 caracteres), muestra clave/URI para registrar TOTP y exige un código válido antes de guardar. Muestra ocho códigos de recuperación de un uso; guárdalos en tu gestor de contraseñas. El email debe coincidir con Access en producción.
+### Crear el usuario y configurar el autenticador
+
+1. El comando `create-admin` solicita email y contraseña (mínimo 14 caracteres). El email debe coincidir con Access en producción.
+2. Abre una aplicación autenticadora en tu dispositivo. Añade una cuenta mediante **clave manual**, con nombre **Apache Status Monitor** y tipo **basado en tiempo (TOTP)**: seis dígitos, período de 30 segundos.
+3. Introduce en esa cuenta la **clave secreta larga** que muestra la terminal. La URI `otpauth://` es una alternativa para importar la misma cuenta en una aplicación compatible. Ambas contienen el secreto: consérvalas en privado.
+4. La aplicación mostrará un **código de seis dígitos**. Escríbelo en la terminal para confirmar la configuración; el usuario solo se guarda si es válido.
+5. Guarda los ocho **códigos de recuperación** que muestra la terminal en tu gestor de contraseñas. Cada uno permite un único acceso si pierdes el autenticador.
 
 Abre **http://localhost:8187**. Este perfil solo publica en loopback y omite Access; **no lo expongas mediante un túnel**.
+
+Para entrar, introduce email, contraseña y el código actual de la cuenta Apache Status Monitor en tu autenticador. Cambia cada 30 segundos; el campo también acepta un código de recuperación. La clave secreta larga se utiliza para configurar el autenticador. Si un código temporal falla, espera al siguiente y comprueba que tu dispositivo tenga fecha y hora automáticas.
+
+### Ya creé el usuario, pero no tengo el autenticador
+
+Desde la carpeta del proyecto en Kakarot, ejecuta:
+
+```bash
+docker compose -f compose.yaml -f compose.local.yaml exec backend python -m app.cli reset-mfa
+```
+
+Introduce tu contraseña actual y sigue los pasos de configuración anteriores con la nueva clave. **No necesitas iniciar sesión en la web ni disponer del código TOTP anterior**: este comando exige acceso a la terminal local y tu contraseña. Al confirmar el nuevo código, reemplaza el autenticador y los códigos de recuperación anteriores y revoca las sesiones abiertas. Guarda los nuevos códigos de recuperación y vuelve a la web con un código actual del nuevo autenticador.
 
 ## Configuración de servicios
 

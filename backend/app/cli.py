@@ -15,9 +15,15 @@ from app.security import PASSWORDS, digest, password_valid
 def enrol_totp(email: str) -> tuple[str, list[str]]:
     secret = pyotp.random_base32()
     totp = pyotp.TOTP(secret)
-    print("Añade esta clave en tu aplicación autenticadora (no la compartas):")
+    print("Configura el segundo factor antes de entrar en la web:")
+    print("1. Abre tu aplicación autenticadora y añade una cuenta con clave manual.")
+    print("2. Nombre: Apache Status Monitor. Tipo: basado en tiempo (TOTP), 6 dígitos / 30 s.")
+    print("3. Introduce esta clave secreta en el autenticador y guarda la cuenta:")
     print(secret)
+    print("URI alternativa para importar en un autenticador compatible (también es secreta):")
     print(totp.provisioning_uri(name=email, issuer_name="Apache Status Monitor"))
+    print("4. Introduce abajo los seis dígitos que muestra esa cuenta en el autenticador.")
+    print("La clave larga configura la cuenta; para entrar en la web usa el código temporal.")
     if not totp.verify(getpass.getpass("Código actual de seis dígitos: ").strip(), valid_window=1):
         raise SystemExit("Código incorrecto. No se ha guardado ningún cambio.")
     recovery = [secrets.token_hex(12) for _ in range(8)]
@@ -67,6 +73,8 @@ def main():
                 raise SystemExit("Credenciales no válidas.")
             recovery = []
             if args.command == "reset-mfa":
+                print("Al completar la configuración se sustituyen el autenticador y los códigos")
+                print("de recuperación anteriores, y se cierran las sesiones abiertas.")
                 encrypted, recovery = enrol_totp(admin.email)
                 admin.totp_encrypted = encrypted
                 admin.recovery_hashes = [digest(x) for x in recovery]
@@ -80,6 +88,9 @@ def main():
         print("Códigos de recuperación de un solo uso. Guárdalos en tu gestor de contraseñas:")
         print("\n".join(recovery))
     print("Operación completada.")
+    if recovery:
+        print("En la web: introduce tu email, contraseña y el código actual del autenticador.")
+        print("El código cambia cada 30 segundos. Cada código de recuperación sirve una sola vez.")
 
 
 if __name__ == "__main__":
