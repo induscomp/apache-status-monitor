@@ -92,6 +92,53 @@ test('administrator configures independent services, persists changes and revoke
   await page.getByRole('button', { name: 'Ver diagnóstico', exact: true }).click();
   await expect(page.getByText('Aún no hay muestras.', { exact: false })).toBeVisible();
   await page.getByRole('dialog').getByLabel('Cerrar', { exact: true }).click();
+  const sample = {
+    id: 'fixture',
+    service_id: 'fixture-service',
+    revision: 1,
+    observed_at: '2026-09-11T12:00:00Z',
+    status: 'ok',
+    warnings: [],
+    metrics: { observed_workers: 1, active_workers: 1, global: { BusyWorkers: 1, IdleWorkers: 4 } },
+  };
+  await page.route('**/api/v1/services/*/observations', (route) =>
+    route.fulfill({ json: { items: [sample] } }),
+  );
+  await page.route('**/api/v1/observations/fixture?offset=0', (route) =>
+    route.fulfill({
+      json: {
+        ...sample,
+        total_workers: 1,
+        details_expired: false,
+        workers: [
+          {
+            slot: '1-0',
+            state: 'W',
+            client: '2001:db8::1',
+            domain: 'example.test',
+            method: 'GET',
+            path: '/page',
+            seconds_since: 2,
+            request_ms: 50,
+            observation: 'current',
+          },
+        ],
+      },
+    }),
+  );
+  await page.getByRole('button', { name: 'Ver diagnóstico', exact: true }).click();
+  await expect(page.getByRole('dialog').getByText('2001:db8::1', { exact: true })).toBeVisible();
+  await expect(page.getByRole('dialog').getByText('GET /page', { exact: true })).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({
+    path: testInfo.outputPath('apache-diagnostic-mobile.png'),
+    fullPage: true,
+  });
+  await page.getByRole('dialog').getByLabel('Cerrar', { exact: true }).click();
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.unroute('**/api/v1/services/*/observations');
+  await page.unroute('**/api/v1/observations/fixture?offset=0');
   await service('Apache secundario', 'apache_status');
   await service('Estadísticas del sistema', 'mrtg');
   const apache = page.getByRole('row').filter({ hasText: 'Apache principal' });
