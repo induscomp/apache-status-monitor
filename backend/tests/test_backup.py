@@ -177,3 +177,21 @@ def test_wrong_application_key_refuses_restore(tmp_path, monkeypatch):
         with pytest.raises(ValueError, match="encryption key"):
             restore(db, path, cipher)
         assert db.scalar(select(func.count()).select_from(Server)) == 0
+
+
+def test_failed_verification_invalidates_availability(monkeypatch):
+    from app import backup
+
+    with session_factory()() as db:
+        db.add(ComponentHeartbeat(name="backup", seen_at=now()))
+        db.add(ComponentHeartbeat(name="scheduler", seen_at=now()))
+        db.commit()
+
+    def damaged():
+        raise InvalidToken()
+
+    monkeypatch.setattr(backup, "create_daily", damaged)
+    backup.scheduled()
+    with session_factory()() as db:
+        assert db.get(ComponentHeartbeat, "backup") is None
+        assert db.get(ComponentHeartbeat, "scheduler") is not None

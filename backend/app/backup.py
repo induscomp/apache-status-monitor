@@ -11,7 +11,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from cryptography.fernet import Fernet
-from sqlalchemy import DateTime, func, select, text
+from sqlalchemy import DateTime, delete, func, select, text
 
 from app.config import get_settings
 from app.db import session_factory
@@ -238,6 +238,14 @@ def scheduled():
         logging.getLogger("smon.backup").error(
             json.dumps({"event": "backup_failed", "type": type(exc).__name__})
         )
+        # A previously verified file may now be corrupt or inaccessible. Do not
+        # continue showing it as available after a failed verification.
+        try:
+            with session_factory()() as db:
+                db.execute(delete(ComponentHeartbeat).where(ComponentHeartbeat.name == "backup"))
+                db.commit()
+        except Exception:
+            logging.getLogger("smon.backup").error('{"event":"backup_health_update_failed"}')
 
 
 def main():
