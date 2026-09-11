@@ -1386,3 +1386,23 @@ th {
 dialog:has(.apache-diagnostics) {
   width: min(1200px, calc(100% - 30px));
 }
+
+.apache-diagnostics label {
+  display: grid;
+  gap: 8px;
+}
+.apache-diagnostics select {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  padding: 10px;
+  border: 1px solid #d2dfce;
+  border-radius: 6px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+}
+.service-name .secondary {
+  display: block;
+  margin-top: 8px;
+}
