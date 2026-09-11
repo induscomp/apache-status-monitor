@@ -82,7 +82,7 @@ docker compose -f compose.yaml -f compose.local.yaml exec backend python -m app.
 docker compose -f compose.yaml -f compose.local.yaml exec backend python -m app.cli reset-mfa
 ```
 
-En producción omite el archivo local. Migración debe finalizar con código 0; el worker publica heartbeat. Recolectores todavía pendientes.
+En producción omite el archivo local. Migración debe finalizar con código 0; el worker publica heartbeat. Apache recoge según el intervalo configurado; MRTG sigue pendiente. Consulta [diagnóstico Apache](apache.md).
 
 Cambiar contraseña/MFA exige contraseña actual y revoca sesiones. Un código de recuperación permite login una vez; no restablece automáticamente el autenticador. No hay recuperación pública ni usuario oculto.
 

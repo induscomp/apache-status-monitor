@@ -89,6 +89,9 @@ test('administrator configures independent services, persists changes and revoke
   }
   await server('Atlas · Producción');
   await service('Apache principal', 'apache_status');
+  await page.getByRole('button', { name: 'Ver diagnóstico', exact: true }).click();
+  await expect(page.getByText('Aún no hay muestras.', { exact: false })).toBeVisible();
+  await page.getByRole('dialog').getByLabel('Cerrar', { exact: true }).click();
   await service('Apache secundario', 'apache_status');
   await service('Estadísticas del sistema', 'mrtg');
   const apache = page.getByRole('row').filter({ hasText: 'Apache principal' });

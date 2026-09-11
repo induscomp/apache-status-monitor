@@ -1336,3 +1336,53 @@ th {
     transition: none !important;
   }
 }
+
+.apache-diagnostics {
+  max-width: 100%;
+}
+.apache-diagnostics p {
+  margin: 16px 0;
+  line-height: 1.6;
+}
+.apache-diagnostics label {
+  margin: 20px 0;
+}
+.apache-diagnostics .table-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+}
+.apache-diagnostics table {
+  min-width: 900px;
+}
+.apache-diagnostics td {
+  max-width: 240px;
+  overflow-wrap: anywhere;
+}
+.diagnostic-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.diagnostic-metrics strong {
+  display: block;
+  font-size: 28px;
+}
+.apache-diagnostics dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+}
+.status.ok {
+  background: #e5f3ed;
+  color: #176747;
+}
+.status.error,
+.status.stale,
+.status.partial {
+  background: #fff1d9;
+  color: #885810;
+}
+
+dialog:has(.apache-diagnostics) {
+  width: min(1200px, calc(100% - 30px));
+}

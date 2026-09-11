@@ -2,7 +2,7 @@
 
 Monitor open source para organizar varios servidores y sus servicios Apache Status y MRTG.
 
-**SMON-001: base funcional de configuración.** Incluye autenticación con TOTP, administración de servidores/servicios, revisiones de configuración y Docker. **Todavía no hay recolectores ni gráficos de métricas.** Los servicios habilitados aparecen pendientes, sin lecturas ni datos inventados.
+**SMON-002 en desarrollo: recogida de Apache operativa.** Incluye autenticación con TOTP, administración multiservidor, lectura periódica de Apache Status, histórico y detalle de workers. **MRTG todavía no tiene recolector.** Consulta el [alcance y la interpretación del diagnóstico](docs/apache.md).
 
 ## Incluye
 
@@ -12,6 +12,7 @@ Monitor open source para organizar varios servidores y sus servicios Apache Stat
 - PostgreSQL con migraciones y cuenta de aplicación sin permisos administrativos.
 - Credenciales de endpoints cifradas y orígenes autorizados por el operador.
 - Interfaz responsive en español, pruebas con PostgreSQL/navegador y CI.
+- Diagnóstico Apache con muestras por servicio, cobertura parcial y originales cifrados.
 
 ## Inicio local
 

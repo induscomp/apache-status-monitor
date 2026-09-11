@@ -104,3 +104,16 @@ class ComponentHeartbeat(Base):
     __tablename__ = "component_heartbeats"
     name: Mapped[str] = mapped_column(String(30), primary_key=True)
     seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class ApacheObservation(Base):
+    __tablename__ = "apache_observations"
+    id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=identifier)
+    service_id: Mapped[str] = mapped_column(ForeignKey("services.id"), index=True)
+    revision: Mapped[int] = mapped_column()
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, index=True)
+    status: Mapped[str] = mapped_column(String(20))
+    metrics: Mapped[dict] = mapped_column(JSONB, default=dict)
+    warnings: Mapped[list] = mapped_column(JSONB, default=list)
+    workers: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    raw_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)

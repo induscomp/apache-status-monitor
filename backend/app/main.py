@@ -12,9 +12,10 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, object_session
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
+from app.collection import latest
 from app.config import get_settings
 from app.connectors import CONNECTORS
 from app.connectors.policy import validate_service_url
@@ -27,6 +28,7 @@ from app.models import (
     ServiceRevision,
     now,
 )
+from app.observations import router as observations_router
 from app.schemas import Login, ServerInput, ServerUpdate, ServiceInput, ServiceUpdate
 from app.security import (
     DUMMY_HASH,
@@ -180,6 +182,7 @@ def create_app() -> FastAPI:
 
     api = APIRouter(prefix="/api/v1", dependencies=[Depends(access_identity)])
     api.include_router(setup_router)
+    api.include_router(observations_router)
 
     @api.post("/auth/login")
     def login(
@@ -267,7 +270,7 @@ def create_app() -> FastAPI:
             if heartbeat and heartbeat.seen_at > now() - timedelta(seconds=90)
             else "unavailable",
             "scheduler_last_seen": heartbeat.seen_at if heartbeat else None,
-            "apache_collector": "pending",
+            "apache_collector": "available",
             "mrtg_collector": "pending",
             "email": "not_configured",
         }
@@ -283,6 +286,20 @@ def create_app() -> FastAPI:
         }
 
     def service_result(service: Service, parent_archived: bool = False):
+        last = (
+            latest(object_session(service), service.id)
+            if service.id and service.kind == "apache_status"
+            else None
+        )
+        success = latest(object_session(service), service.id, success=True) if last else None
+        status = "waiting" if service.kind == "apache_status" else "pending"
+        if last:
+            status = last.status
+            if (
+                last.revision != service.revision
+                or last.observed_at + timedelta(seconds=service.interval_seconds * 2) < now()
+            ):
+                status = "stale"
         return {
             "id": service.id,
             "server_id": service.server_id,
@@ -299,11 +316,15 @@ def create_app() -> FastAPI:
             if service.archived or parent_archived
             else "paused"
             if not service.enabled
-            else "pending",
-            "last_attempt_at": None,
-            "last_success_at": None,
-            "next_run_at": None,
-            "capabilities": [],
+            else status,
+            "last_attempt_at": last.observed_at if last else None,
+            "last_success_at": success.observed_at if success else None,
+            "next_run_at": last.observed_at + timedelta(seconds=service.interval_seconds)
+            if last and service.enabled and not service.archived and not parent_archived
+            else None,
+            "capabilities": ["workers", "global_metrics"]
+            if service.kind == "apache_status"
+            else [],
             "created_at": service.created_at,
         }
 

@@ -18,7 +18,7 @@ export type Service = {
   revision: number;
   options: { apache_auto: boolean };
   has_credentials: boolean;
-  status: 'pending' | 'paused' | 'archived';
+  status: 'waiting' | 'ok' | 'partial' | 'error' | 'stale' | 'pending' | 'paused' | 'archived';
 };
 export type Page<T> = { items: T[]; total: number };
 export type Health = {

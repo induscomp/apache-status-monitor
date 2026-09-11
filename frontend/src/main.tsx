@@ -26,12 +26,22 @@ import {
 } from 'lucide-react';
 import { api, ApiError } from './api';
 import { Setup } from './Setup';
+import { ApacheDiagnostics } from './ApacheDiagnostics';
 import type { Health, Page, Server, Service, Session } from './api';
 import './styles.css';
 
 const EMPTY = { items: [], total: 0 };
 const KIND = { apache_status: 'Apache Status', mrtg: 'MRTG' };
-const STATUS = { pending: 'Pendiente de recolector', paused: 'Pausado', archived: 'Archivado' };
+const STATUS = {
+  waiting: 'Esperando primera recogida',
+  ok: 'Recogida correcta',
+  partial: 'Datos parciales',
+  error: 'Error de recogida',
+  stale: 'Datos desactualizados',
+  pending: 'Pendiente de recolector',
+  paused: 'Pausado',
+  archived: 'Archivado',
+};
 const message = (error: unknown) =>
   error instanceof Error ? error.message : 'No se pudo completar la operación.';
 
@@ -447,6 +457,7 @@ function ServiceForm({
 }
 
 function Workspace({ session, expired }: { session: Session; expired: () => void }) {
+  const [diagnostic, setDiagnostic] = useState<Service | null>(null);
   const [servers, setServers] = useState<Page<Server>>(EMPTY);
   const [services, setServices] = useState<Page<Service>>(EMPTY);
   const [selected, setSelected] = useState<string | null>(null);
@@ -629,7 +640,7 @@ function Workspace({ session, expired }: { session: Session; expired: () => void
         )}
         <div className="sidebar-bottom">
           <div className="foundation-badge">
-            <span className="dot" /> SMON-001 · Configuración
+            <span className="dot" /> Apache · Histórico
           </div>
           <div className="account">
             <div className="avatar">A</div>
@@ -733,13 +744,14 @@ function Workspace({ session, expired }: { session: Session; expired: () => void
               <Radio size={20} />
             </div>
             <div>
-              <strong>Primero, una base bien conectada.</strong>
+              <strong>Observa la actividad de Apache.</strong>
               <p>
-                Ya puedes organizar servidores y servicios. La recogida de métricas llegará en los
-                siguientes hitos; todavía no se están consultando los endpoints.
+                Ya puedes organizar servidores y servicios. Apache Status ya dispone de recogida
+                periódica e histórico. Abre «Ver diagnóstico» para consultar las muestras. MRTG
+                sigue pendiente de recolector.
               </p>
             </div>
-            <span className="tag">FASE DE CONFIGURACIÓN</span>
+            <span className="tag">DIAGNÓSTICO APACHE</span>
           </section>
           <section className="service-panel">
             <div className="panel-heading">
@@ -881,6 +893,14 @@ function Workspace({ session, expired }: { session: Session; expired: () => void
                               </span>
                               <div>
                                 <strong>{service.name}</strong>
+                                {service.kind === 'apache_status' && (
+                                  <button
+                                    className="secondary"
+                                    onClick={() => setDiagnostic(service)}
+                                  >
+                                    Ver diagnóstico
+                                  </button>
+                                )}
                                 <span className="endpoint" title={service.url}>
                                   {service.url}
                                 </span>
@@ -990,6 +1010,11 @@ function Workspace({ session, expired }: { session: Session; expired: () => void
           </footer>
         </main>
       </div>
+      {diagnostic && (
+        <Dialog title={`Diagnóstico · ${diagnostic.name}`} close={() => setDiagnostic(null)}>
+          <ApacheDiagnostics serviceId={diagnostic.id} />
+        </Dialog>
+      )}
       {serverForm && (
         <ServerForm
           current={serverForm === 'new' ? undefined : serverForm}

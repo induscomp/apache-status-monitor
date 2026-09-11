@@ -18,17 +18,14 @@ class CollectionResult:
 
 
 class Connector(Protocol):
-    """Future implementations must receive the shared, DNS-pinned safe transport.
-
-    No network collectors are registered or invoked in SMON-001.
-    """
+    """Connectors must use the shared DNS-pinned, bounded transport."""
 
     def collect(self, configuration: dict, transport: object) -> CollectionResult: ...
 
 
 CONNECTORS = {
     "apache_status": ConnectorDescriptor(
-        "apache_status", "Apache Status", "Workers, dominios y actividad observada de Apache."
+        "apache_status", "Apache Status", "Workers, dominios y actividad observada de Apache.", True
     ),
     "mrtg": ConnectorDescriptor(
         "mrtg", "MRTG", "Índice → enlaces de imágenes → estadísticas de las páginas de detalle."
