@@ -58,6 +58,7 @@ services:
 
   backend:
     <<: *app
+    secrets: [db_password, encryption_key, setup_token]
     depends_on:
       migrate: {condition: service_completed_successfully}
     restart: unless-stopped
@@ -125,4 +126,5 @@ secrets:
   db_owner_password: {file: ./secrets/db_owner_password}
   db_password: {file: ./secrets/db_password}
   encryption_key: {file: ./secrets/encryption_key}
+  setup_token: {file: ./secrets/setup_token}
   cloudflare_token: {file: ./secrets/cloudflare_token}

@@ -14,6 +14,7 @@ import base64, pathlib, secrets, sys
 root = pathlib.Path(sys.argv[1])
 (root / 'password').write_text(secrets.token_hex(24))
 (root / 'key').write_bytes(base64.urlsafe_b64encode(secrets.token_bytes(32)))
+(root / 'setup_token').write_text(secrets.token_urlsafe(32))
 PY
 docker run --detach --rm --name "$smon_container" \
   --label app=apache-status-monitor-test \
@@ -28,6 +29,7 @@ done
 smon_port=$(docker port "$smon_container" 5432/tcp)
 export SMON_ENVIRONMENT=testing SMON_PUBLIC_ORIGIN=http://localhost:4173
 export SMON_ENCRYPTION_KEY_FILE="$smon_temp/key"
+export SMON_SETUP_TOKEN_FILE="$smon_temp/setup_token"
 export SMON_DATABASE_URL="postgresql+psycopg://smon_test:$(cat "$smon_temp/password")@127.0.0.1:${smon_port##*:}/smon_test"
 export SMON_ALLOWED_MONITOR_ORIGINS='["https://web.example.test","http://metrics.example.test"]'
 export SMON_ALLOWED_HTTP_ORIGINS='["http://metrics.example.test"]'
@@ -41,7 +43,6 @@ cd "$smon_root/backend"
 if [ "${SMON_RUN_E2E:-0}" = 1 ]; then
   export SMON_E2E_PASSWORD
   SMON_E2E_PASSWORD=$(python3 -c 'import secrets; print(secrets.token_urlsafe(24))')
-  .venv/bin/python tests/seed_e2e.py
   cd "$smon_root/frontend"
   npm run test:e2e
 fi

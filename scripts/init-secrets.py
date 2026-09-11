@@ -10,6 +10,7 @@ root.mkdir(mode=0o700, exist_ok=True)
 for name, value in {
     "db_owner_password": secrets.token_urlsafe(40),
     "db_password": secrets.token_urlsafe(40),
+    "setup_token": secrets.token_urlsafe(32),
     "encryption_key": base64.urlsafe_b64encode(secrets.token_bytes(32)).decode(),
 }.items():
     try:

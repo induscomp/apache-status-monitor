@@ -49,7 +49,7 @@ Producción exige HTTPS, dominio de equipo `*.cloudflareaccess.com` y audience. 
 
 El email de Access debe coincidir con el administrador local. Sesiones de ocho horas con token almacenado como hash. En HTTPS, cookie `__Host-smon`, Secure, HttpOnly y SameSite=Strict. Mutaciones requieren Origin exacto y, salvo login, token CSRF.
 
-TOTP y recuperación se consumen bajo bloqueo de fila; no admiten reutilización concurrente. Tolerancia TOTP de un paso. Alta y cambios de contraseña/MFA son locales e interactivos. Cambiar contraseña o MFA revoca sesiones. No hay registro público ni contraseña por defecto.
+TOTP y recuperación se consumen bajo bloqueo de fila; no admiten reutilización concurrente. Tolerancia TOTP de un paso. El alta inicial se realiza mediante un asistente web protegido por una clave de instalación privada, origen y Access en producción, o mediante CLI local. El asistente solo crea la cuenta tras confirmar TOTP, con una autorización cifrada de diez minutos, y se cierra al existir el administrador único. Los cambios de contraseña/MFA son locales e interactivos. Cambiar contraseña o MFA revoca sesiones. No hay registro público ni contraseña por defecto.
 
 Rate limiting atómico en PostgreSQL: cinco intentos por cuenta/cinco minutos y 30 globales/minuto. No depende de cabeceras IP. Access debe restringir previamente la identidad.
 

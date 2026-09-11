@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     database_user: str = "smon"
     database_password_file: Path = Path("/run/secrets/db_password")
     encryption_key_file: Path = Path("/run/secrets/encryption_key")
+    setup_token_file: Path = Path("/run/secrets/setup_token")
     cf_team_domain: str = ""
     cf_audience: str = ""
     allowed_monitor_origins: list[str] = []

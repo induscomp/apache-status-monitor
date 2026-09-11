@@ -21,10 +21,9 @@ Requisitos: Docker Engine, Docker Compose y Python 3 para generar secretos. Los 
 cp .env.example .env  # solo si no existe
 python3 scripts/init-secrets.py
 docker compose -f compose.yaml -f compose.local.yaml up --build -d --wait
-docker compose -f compose.yaml -f compose.local.yaml exec backend python -m app.cli create-admin
 ```
 
-Abre **http://localhost:8187**. El alta es interactiva: elige contraseña, registra TOTP y guarda los códigos de recuperación. No hay cuenta ni contraseña predeterminada. Ajusta `SMON_UID`/`SMON_GID` en `.env` si no son 1000.
+Abre **http://localhost:8187** y completa el asistente web: copia la clave del archivo `secrets/setup_token`, elige email y contraseña, escanea el QR y guarda los códigos de recuperación. No hace falta crear el usuario desde la terminal. Si ya existe un administrador, aparece el login y el asistente queda cerrado. No hay cuenta ni contraseña predeterminada. Ajusta `SMON_UID`/`SMON_GID` en `.env` si no son 1000.
 
 **El perfil local omite Access y solo publica en loopback. No lo uses detrás de un túnel público.** Consulta [despliegue](docs/deployment.md) para acceso remoto y configuración de los orígenes monitorizables.
 

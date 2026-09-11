@@ -41,6 +41,7 @@ from app.security import (
     password_valid,
     rate_limit,
 )
+from app.setup import router as setup_router
 
 logger = logging.getLogger("smon")
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -178,6 +179,7 @@ def create_app() -> FastAPI:
         return {"status": "ok"}
 
     api = APIRouter(prefix="/api/v1", dependencies=[Depends(access_identity)])
+    api.include_router(setup_router)
 
     @api.post("/auth/login")
     def login(

@@ -1,4 +1,19 @@
 import { expect, test } from '@playwright/test';
+import { readFileSync } from 'node:fs';
+import { createHmac } from 'node:crypto';
+
+function currentCode(secret: string): string {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+  const bits = [...secret]
+    .map((letter) => alphabet.indexOf(letter).toString(2).padStart(5, '0'))
+    .join('');
+  const key = Buffer.from(bits.match(/.{8}/g)!.map((byte) => parseInt(byte, 2)));
+  const counter = Buffer.alloc(8);
+  counter.writeBigUInt64BE(BigInt(Math.floor(Date.now() / 30000)));
+  const hash = createHmac('sha1', key).update(counter).digest();
+  const offset = hash[hash.length - 1] & 15;
+  return ((hash.readUInt32BE(offset) & 0x7fffffff) % 1000000).toString().padStart(6, '0');
+}
 
 test('administrator configures independent services, persists changes and revokes access', async ({
   page,
@@ -7,10 +22,40 @@ test('administrator configures independent services, persists changes and revoke
   page.on('pageerror', (error) => errors.push(error.message));
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Configura tu panel' })).toBeVisible();
+  await page
+    .getByLabel('Clave de instalación', { exact: true })
+    .fill(readFileSync(process.env.SMON_SETUP_TOKEN_FILE!, 'utf8').trim());
+  await page.getByLabel('Email', { exact: true }).fill('admin@example.test');
+  await page.getByLabel('Contraseña', { exact: true }).fill(process.env.SMON_E2E_PASSWORD!);
+  await page
+    .getByLabel('Repite la contraseña', { exact: true })
+    .fill(process.env.SMON_E2E_PASSWORD!);
+  await page.getByRole('button', { name: 'Continuar al código QR' }).click();
+  await expect(
+    page.getByRole('img', { name: 'Código QR para configurar tu autenticador' }),
+  ).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath('setup-qr.png'), fullPage: true });
+  await page.getByText('¿No puedes escanearlo?', { exact: true }).click();
+  const secret = await page.locator('.manual-key code').innerText();
+  await page.getByLabel('Código de seis dígitos', { exact: true }).fill(currentCode(secret));
+  await page.getByRole('button', { name: 'Confirmar y crear administrador' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Guarda tu acceso de recuperación' }),
+  ).toBeVisible();
+  await expect(page.locator('.recovery-codes li')).toHaveCount(8);
+  const recovery = await page.locator('.recovery-codes code').first().innerText();
+  await expect(page.getByRole('button', { name: 'Ir al inicio de sesión' })).toBeDisabled();
+  await page.getByLabel('He guardado mis códigos de recuperación').check();
+  await page.getByRole('button', { name: 'Ir al inicio de sesión' }).click();
+  await page.reload();
+  await page.setViewportSize({ width: 1440, height: 1000 });
   await expect(page.getByRole('heading', { name: 'Bienvenido de nuevo' })).toBeVisible();
   await page.getByLabel('Email', { exact: true }).fill('admin@example.test');
   await page.getByLabel('Contraseña', { exact: true }).fill(process.env.SMON_E2E_PASSWORD!);
-  await page.getByLabel('Código de autenticación o recuperación').fill('e2e-recovery-fixture');
+  await page.getByLabel('Código de autenticación o recuperación').fill(recovery);
   await page.getByRole('button', { name: 'Entrar al panel' }).click();
   await expect(page.getByRole('heading', { name: 'Tu infraestructura' })).toBeVisible();
 

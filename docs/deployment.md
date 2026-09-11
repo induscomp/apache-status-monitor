@@ -6,22 +6,35 @@
 cp .env.example .env  # solo si no existe
 python3 scripts/init-secrets.py
 docker compose -f compose.yaml -f compose.local.yaml up --build -d --wait
-docker compose -f compose.yaml -f compose.local.yaml exec backend python -m app.cli create-admin
 ```
 
 Secretos creados una vez, sin sobrescribir, modo 0600 y carpeta 0700. Ajusta SMON_UID/SMON_GID para que backend/worker puedan leerlos. Nunca pongas secretos en chat, argumentos del shell, Git o issues.
 
-### Crear el usuario y configurar el autenticador
-
-1. El comando `create-admin` solicita email y contraseña (mínimo 14 caracteres). El email debe coincidir con Access en producción.
-2. Abre una aplicación autenticadora en tu dispositivo y selecciona **añadir cuenta → escanear código QR**.
-3. Escanea el **QR que muestra la terminal**. La cuenta Apache Status Monitor se configura automáticamente. Amplía la terminal o reduce su zoom si se cortan las filas del QR. Si no puedes escanearlo, debajo aparece la clave para añadir la cuenta manualmente: tipo **basado en tiempo (TOTP)**, seis dígitos y período de 30 segundos. El QR y la clave contienen el mismo secreto: consérvalos en privado. El QR se genera localmente con [Segno](https://segno.readthedocs.io/en/latest/), sin servicios externos ni archivos de imagen.
-4. La aplicación mostrará un **código de seis dígitos**. Escríbelo en la terminal para confirmar la configuración; el usuario solo se guarda si es válido.
-5. Guarda los ocho **códigos de recuperación** que muestra la terminal en tu gestor de contraseñas. Cada uno permite un único acceso si pierdes el autenticador.
+### Asistente web de primera instalación
 
 Abre **http://localhost:8187**. Este perfil solo publica en loopback y omite Access; **no lo expongas mediante un túnel**.
 
-Para entrar, introduce email, contraseña y el código actual de la cuenta Apache Status Monitor en tu autenticador. Cambia cada 30 segundos; el campo también acepta un código de recuperación. La clave secreta larga se utiliza para configurar el autenticador. Si un código temporal falla, espera al siguiente y comprueba que tu dispositivo tenga fecha y hora automáticas.
+1. Si no existe un administrador, verás **Configura tu panel**. Abre `secrets/setup_token` en tu editor y copia su contenido en **Clave de instalación**. Este archivo privado se crea con `init-secrets.py`; acredita que eres el propietario de la instalación. No se envía por URL ni aparece en logs.
+2. Elige email y contraseña (mínimo 14 caracteres) y repite la contraseña. En producción, el email debe coincidir con Cloudflare Access.
+3. En tu aplicación autenticadora, selecciona **añadir cuenta → escanear QR** y escanea el QR de la web. Introduce los seis dígitos que genera para confirmar. El QR se genera localmente con [Segno](https://segno.readthedocs.io/en/latest/), sin servicios externos. La clave manual está disponible como alternativa.
+4. Guarda los ocho **códigos de recuperación** en tu gestor de contraseñas. Se muestran una vez y cada uno permite un acceso. Marca que los has guardado y continúa al login.
+5. Entra con email, contraseña y el código actual del autenticador, que cambia cada 30 segundos.
+
+La configuración del QR caduca a los diez minutos. Antes de confirmar el código no se crea ninguna cuenta; puedes volver a empezar si caduca o recargas. Después de confirmar, el asistente queda cerrado aunque la clave de instalación siga montada. Si se interrumpe la conexión justo al confirmar, recarga: si aparece el login, el alta se completó y puedes entrar con tu autenticador. Si no recibiste los códigos de recuperación, usa `reset-mfa` desde la terminal local para generar un nuevo juego.
+
+La contraseña y los datos del asistente se mantienen solo durante el flujo, sin almacenamiento local del navegador. Los endpoints exigen la clave de instalación, comprobación de origen y límites de intentos; en producción también exigen un JWT válido de Access. La clave de instalación no permite recuperar ni sustituir una cuenta existente.
+
+### Instalaciones existentes y alternativa por terminal
+
+Antes de actualizar una instalación anterior al asistente, ejecuta `python3 scripts/init-secrets.py`: añade `secrets/setup_token` sin sobrescribir los secretos existentes. Después ejecuta Compose `up --build -d --wait` con tus archivos habituales. Tu administrador y sus datos se conservan, y seguirá apareciendo el login.
+
+El alta por terminal sigue disponible como alternativa:
+
+```bash
+docker compose -f compose.yaml -f compose.local.yaml exec backend python -m app.cli create-admin
+```
+
+Solicita email y contraseña, muestra un QR en la terminal y exige un código válido antes de guardar. Amplía la terminal si se cortan las filas del QR. Después guarda los ocho códigos de recuperación. Ambos métodos crean el mismo administrador único.
 
 ### Ya creé el usuario, pero no tengo el autenticador
 
@@ -54,7 +67,7 @@ URL sin credenciales/query/fragmento. Apache `?auto` se configura aparte. Creden
 4. Completa `.env`: `SMON_ENVIRONMENT=production`, `SMON_PUBLIC_ORIGIN=https://tu-hostname`, `SMON_CF_TEAM_DOMAIN=https://tu-equipo.cloudflareaccess.com`, `SMON_CF_AUDIENCE` con el AUD. Origen sin `/` final.
 5. Detén el perfil local sin borrar datos: `docker compose -f compose.yaml -f compose.local.yaml down`.
 6. Arranca sin el archivo local: `docker compose --profile tunnel up --build -d --wait`.
-7. Si falta la cuenta: `docker compose exec backend python -m app.cli create-admin`.
+7. Abre el hostname autorizado por Access y completa el asistente web si aún no existe administrador, usando la clave de `secrets/setup_token`.
 
 Producción no publica puertos. Sin configuración Access válida no arranca el backend; sin JWT válido se deniega la API. Access no sustituye contraseña/TOTP local. El túnel no se activa durante el desarrollo.
 

@@ -25,6 +25,7 @@ import {
   X,
 } from 'lucide-react';
 import { api, ApiError } from './api';
+import { Setup } from './Setup';
 import type { Health, Page, Server, Service, Session } from './api';
 import './styles.css';
 
@@ -1028,6 +1029,7 @@ function Workspace({ session, expired }: { session: Session; expired: () => void
 }
 
 function App() {
+  const [setup, setSetup] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -1035,8 +1037,15 @@ function App() {
   useEffect(() => {
     api<Session>('/auth/session')
       .then(setSession)
-      .catch((err) => {
-        if (!(err instanceof ApiError && err.status === 401)) setError(message(err));
+      .catch(async (err) => {
+        if (err instanceof ApiError && err.status === 401) {
+          try {
+            const status = await api<{ available: boolean }>('/setup/status');
+            setSetup(status.available);
+          } catch (setupError) {
+            setError(message(setupError));
+          }
+        } else setError(message(err));
       })
       .finally(() => setLoading(false));
   }, []);
@@ -1047,6 +1056,7 @@ function App() {
         <span>Preparando tu espacio…</span>
       </div>
     );
+  if (setup) return <Setup done={() => setSetup(false)} />;
   return session ? (
     <Workspace session={session} expired={expired} />
   ) : (
