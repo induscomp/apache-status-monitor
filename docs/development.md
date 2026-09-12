@@ -43,6 +43,8 @@ E2E arranca backend en 8189 y Vite en 4173; falla si están ocupados. Solo usa d
 
 La suite también prueba parsers Apache/MRTG, transporte contra DNS rebinding, series, retención, referencias por dominio/servicio, presión de RAM incluso con slots libres o Apache incompleto, idempotencia, confirmación/recuperación, correo cifrado y deduplicación. El navegador recorre estado, gráficos, rankings, incidentes y correo desactivado, en escritorio/móvil. Backup/restauración prueban cifrado, orden, truncamiento, claves incorrectas, destino no vacío, rotación y limpieza de datos vencidos.
 
+Las pruebas de GoAccess cubren JSON sin ejecución de scripts, fechas antiguas/futuras, deduplicación, revisiones, separación de servidores y eliminación de IPs/rutas vencidas. Se verifican las autorizaciones por origen sin eludir SSRF, la negociación STARTTLS antes de credenciales y el recorrido Inicio → servidor → informe, con texto remoto escapado.
+
 CI ejecuta lint, auditorías, build, pruebas y arranque Docker. Acciones fijadas por SHA, permisos de lectura, checkout sin credenciales persistidas y artefactos solo sintéticos. Secretos excluidos de Git y contextos Docker.
 
 Actualizar lockfiles y repetir auditorías en cada cambio de dependencias. No publicar fixtures reales con IP, dominios, rutas, endpoints internos o credenciales. Crear ejemplos sintéticos.

@@ -1,25 +1,25 @@
-La navegación comienza en **Inicio → Mis servidores → Ver servidor**. El resumen conserva la franja temporal; **Gráficos y rankings** amplía los datos. Las fuentes se configuran por servidor y el correo por cuenta. Consulta [fuentes opcionales y GoAccess](goaccess.md).
-
 # Estado del servidor e incidentes
+
+La navegación comienza en **Inicio → Mis servidores → Ver servidor**. El resumen conserva la franja temporal; **Gráficos y rankings** amplía los datos. Las fuentes se configuran por servidor y el correo por cuenta. Consulta [fuentes opcionales y GoAccess](goaccess.md).
 
 ## Fuentes y uso
 
-La monitorización remota utiliza exclusivamente **Apache Status público y MRTG público**. No necesita shell del servidor observado, logs, PHP-FPM, systemd ni APIs del hosting. El worker local de Docker recoge ambos servicios cada cinco minutos. MRTG descubre páginas siguiendo los enlaces que contienen imágenes: extrae números de comentarios o tablas, sin OCR. Las métricas seleccionadas conservan sus ventanas y canales en PostgreSQL.
+El análisis de incidentes utiliza **Apache Status público y MRTG público**. El conector opcional **GoAccess** presenta informes históricos separados, con su periodo y frescura, sin alimentar las alertas actuales. No necesita shell del servidor observado, logs, PHP-FPM, systemd ni APIs del hosting. El worker local de Docker consulta cada fuente configurada cada cinco minutos. MRTG descubre páginas siguiendo los enlaces que contienen imágenes: extrae números de comentarios o tablas, sin OCR. Las métricas seleccionadas conservan sus ventanas y canales en PostgreSQL.
 
 En el panel:
 
 1. Selecciona el servidor en la barra lateral.
-2. **Estado del servidor** reúne las últimas 24 horas: RAM física libre, swap libre, CPU, carga, procesos, conexiones TCP, procesos HTTP y métricas Apache. Selecciona un servicio Apache si hay varios.
-3. Pulsa un dominio en los rankings para ver su histórico. El ranking de conexiones corresponde a workers activos con IP; el de apariciones suma presencia en muestras durante el periodo.
+2. **Estado del servidor** resume las fuentes disponibles, recursos e incidencias. Selecciona un servicio Apache si hay varios.
+3. Abre **Gráficos y rankings** para ampliar las últimas 24 horas; pulsa un dominio para ver su histórico. El ranking de conexiones corresponde a workers activos con IP; el de apariciones suma presencia en muestras durante el periodo.
 4. **Incidentes** muestra anomalías abiertas/resueltas, su referencia estadística y las lecturas de MRTG, dominios, IPs y patrones coincidentes.
-5. **Configuración** conserva los diagnósticos detallados de Apache y MRTG, originales cifrados, descubrimiento y selección de métricas.
+5. **Configuración** permite añadir y editar fuentes. Desde el resumen y desde su fila puedes abrir el diagnóstico Apache, MRTG o GoAccess, incluidos originales Apache/MRTG, descubrimiento y selección de métricas.
 
 La correlación se calcula tras un margen de 90 segundos para que ambos recolectores terminen. El panel se actualiza cada 30 segundos; esto no aumenta la frecuencia de consulta remota. Reiniciar el worker no duplica los análisis. El bloqueo de análisis es por servicio y se comparte entre réplicas mediante PostgreSQL.
 
 ## Interpretación y límites
 
 - **Muchos slots libres no prueban salud.** Nunca producen una etiqueta «servidor sano». Las anomalías de memoria/carga se evalúan aunque Apache devuelva una muestra incompleta o falle.
-- Estas fuentes no confirman errores HTTP 500, consumo de RAM por dominio ni la causa de una caída. Los incidentes muestran coincidencias, no culpables.
+- Apache Status y MRTG no confirman errores HTTP 500, consumo de RAM por dominio ni la causa de una caída. Los incidentes muestran coincidencias, no culpables.
 - Una muestra cada cinco minutos no cuenta todas las visitas ni conexiones transitorias. Un worker idle puede mostrar su última petición. No se atribuyen sus contadores acumulados al último VHost.
 - Los POST a rutas sensibles son candidatos a revisión, no ataques confirmados. También pueden ser legítimos. Las URLs almacenadas excluyen query y fragmento.
 - Req/s, bytes/s y tiempo medio entre muestras se calculan por diferencias de contadores globales comparables, sin reinicio ni huecos superiores a diez minutos. La media usa duración acumulada / peticiones acumuladas, nunca el inverso de req/s. Si Apache no ofrece un contador necesario, se muestra «Sin dato».
