@@ -10,13 +10,18 @@ export type Service = {
   id: string;
   server_id: string;
   name: string;
-  kind: 'apache_status' | 'mrtg';
+  kind: 'apache_status' | 'mrtg' | 'goaccess';
   url: string;
   interval_seconds: number;
   enabled: boolean;
   archived: boolean;
   revision: number;
-  options: { apache_auto: boolean };
+  options: {
+    apache_auto: boolean;
+    authorize_origin?: boolean;
+    allow_http?: boolean;
+    goaccess_max_age_hours?: number;
+  };
   has_credentials: boolean;
   status: 'waiting' | 'ok' | 'partial' | 'error' | 'stale' | 'pending' | 'paused' | 'archived';
 };

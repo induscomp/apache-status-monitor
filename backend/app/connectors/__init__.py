@@ -24,6 +24,12 @@ class Connector(Protocol):
 
 
 CONNECTORS = {
+    "goaccess": ConnectorDescriptor(
+        "goaccess",
+        "GoAccess",
+        "Estadísticas del periodo de un informe HTML público, con fecha de generación.",
+        True,
+    ),
     "apache_status": ConnectorDescriptor(
         "apache_status", "Apache Status", "Workers, dominios y actividad observada de Apache.", True
     ),

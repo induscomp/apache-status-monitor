@@ -107,3 +107,23 @@ def test_invalid_tls_is_not_bypassed(network, monkeypatch):
     monkeypatch.setattr(transport.ssl, "create_default_context", Context)
     with pytest.raises(transport.ssl.SSLCertVerificationError):
         transport.fetch("https://web.example.test/server-status")
+
+
+def test_service_authorization_is_exact_and_http_stays_explicit(network):
+    origin = "http://new.example.test"
+    with pytest.raises(ValueError):
+        transport.fetch(origin + "/report", authorized_origin=origin)
+    with pytest.raises(ValueError):
+        transport.fetch(
+            "http://elsewhere.example.test/report", authorized_origin=origin, allow_http=True
+        )
+    assert transport.fetch(origin + "/report", authorized_origin=origin, allow_http=True) == "ok"
+    assert network[1] == ["new.example.test", ("93.184.216.34", 80), "/report"]
+
+
+def test_service_authorization_does_not_bypass_dns_checks(monkeypatch):
+    monkeypatch.setattr(transport.dns.resolver.Resolver, "resolve", lambda *a, **kw: ["127.0.0.1"])
+    with pytest.raises(transport.FetchError):
+        transport.fetch(
+            "https://new.example.test/report", authorized_origin="https://new.example.test"
+        )

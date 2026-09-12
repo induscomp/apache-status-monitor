@@ -28,12 +28,14 @@ import { api, ApiError } from './api';
 import { Setup } from './Setup';
 import { ApacheDiagnostics } from './ApacheDiagnostics';
 import { MrtgDiagnostics } from './MrtgDiagnostics';
+import { GoAccessDiagnostics } from './GoAccessDiagnostics';
+import { Dashboard } from './Dashboard';
 import { ServerOverview, MailConfiguration } from './ServerOverview';
 import type { Health, Page, Server, Service, Session } from './api';
 import './styles.css';
 
 const EMPTY = { items: [], total: 0 };
-const KIND = { apache_status: 'Apache Status', mrtg: 'MRTG' };
+const KIND = { apache_status: 'Apache Status', mrtg: 'MRTG', goaccess: 'GoAccess' };
 const STATUS = {
   waiting: 'Esperando primera recogida',
   ok: 'Recogida correcta',
@@ -327,7 +329,12 @@ function ServiceForm({
       url: data.get('url'),
       interval_seconds: Number(data.get('interval')) * 60,
       enabled: data.has('enabled'),
-      options: { apache_auto: kind === 'apache_status' && data.has('apache_auto') },
+      options: {
+        apache_auto: kind === 'apache_status' && data.has('apache_auto'),
+        authorize_origin: data.has('authorize_origin'),
+        allow_http: data.has('allow_http'),
+        goaccess_max_age_hours: Number(data.get('goaccess_age') || 26),
+      },
       ...(username || password ? { credentials: { username, password } } : {}),
       ...(current
         ? { archived: current.archived, clear_credentials: data.has('clear_credentials') }
@@ -354,6 +361,7 @@ function ServiceForm({
           >
             <option value="apache_status">Apache Status</option>
             <option value="mrtg">MRTG</option>
+            <option value="goaccess">GoAccess</option>
           </select>
         </label>
         <label>
@@ -363,11 +371,21 @@ function ServiceForm({
             defaultValue={current?.name}
             required
             maxLength={100}
-            placeholder={kind === 'mrtg' ? 'Estadísticas MRTG' : 'Apache principal'}
+            placeholder={
+              kind === 'goaccess'
+                ? 'Informe GoAccess'
+                : kind === 'mrtg'
+                  ? 'Estadísticas MRTG'
+                  : 'Apache principal'
+            }
           />
         </label>
         <label>
-          {kind === 'mrtg' ? 'URL del índice MRTG' : 'URL base de Apache Status'}
+          {kind === 'goaccess'
+            ? 'URL del informe GoAccess'
+            : kind === 'mrtg'
+              ? 'URL del índice MRTG'
+              : 'URL base de Apache Status'}
           <input
             name="url"
             type="url"
@@ -375,16 +393,55 @@ function ServiceForm({
             required
             maxLength={2048}
             placeholder={
-              kind === 'mrtg'
-                ? 'https://servidor.example/mrtg/'
-                : 'https://servidor.example/server-status'
+              kind === 'goaccess'
+                ? 'https://servidor.example/stats/report.html'
+                : kind === 'mrtg'
+                  ? 'https://servidor.example/mrtg/'
+                  : 'https://servidor.example/server-status'
             }
           />
           <small>
-            El origen debe estar autorizado en la configuración del despliegue. Sin credenciales ni
-            parámetros en la URL.
+            URL pública de esta fuente. Sin credenciales ni parámetros; no se permiten redes
+            privadas ni redirecciones.
           </small>
         </label>
+        <label className="check-label">
+          <input
+            type="checkbox"
+            name="authorize_origin"
+            defaultChecked={current?.options.authorize_origin ?? true}
+          />
+          Autorizar este origen público para esta fuente
+        </label>
+        <label className="check-label">
+          <input
+            type="checkbox"
+            name="allow_http"
+            defaultChecked={
+              current?.options.allow_http ?? current?.url.startsWith('http://') ?? false
+            }
+          />
+          Permitir HTTP sin cifrado para esta fuente pública (sin credenciales)
+        </label>
+        {kind === 'goaccess' && (
+          <label>
+            Antigüedad máxima del informe (horas)
+            <input
+              name="goaccess_age"
+              type="number"
+              min={1}
+              max={720}
+              defaultValue={current?.options.goaccess_max_age_hours ?? 26}
+              required
+            />
+          </label>
+        )}
+        {kind === 'goaccess' && (
+          <p className="info-note">
+            Se extrae el JSON del informe sin ejecutar scripts. Su fecha y periodo se muestran
+            separados de las recogidas actuales.
+          </p>
+        )}
         {kind === 'mrtg' && (
           <p className="info-note">
             MRTG se lee siguiendo los enlaces de las imágenes hasta las páginas con estadísticas
@@ -454,7 +511,9 @@ function Workspace({ session, expired }: { session: Session; expired: () => void
   const [diagnostic, setDiagnostic] = useState<Service | null>(null);
   const [servers, setServers] = useState<Page<Server>>(EMPTY);
   const [services, setServices] = useState<Page<Service>>(EMPTY);
-  const [view, setView] = useState<'status' | 'incidents' | 'configuration' | 'mail'>('status');
+  const [view, setView] = useState<
+    'home' | 'status' | 'charts' | 'incidents' | 'configuration' | 'mail'
+  >('home');
   const [selected, setSelected] = useState<string | null>(null);
   const [serverOffset, setServerOffset] = useState(0);
   const [serviceOffset, setServiceOffset] = useState(0);
@@ -530,6 +589,7 @@ function Workspace({ session, expired }: { session: Session; expired: () => void
     );
     await refresh();
     setSelected(result.id);
+    setView('configuration');
     setNotice('Servidor guardado.');
   }
   async function saveService(body: unknown) {
@@ -582,10 +642,10 @@ function Workspace({ session, expired }: { session: Session; expired: () => void
         <div className="workspace-label">
           ESPACIO DE TRABAJO <span>Personal</span>
         </div>
-        <div className="nav-current">
+        <button className="nav-current" aria-label="Inicio" onClick={() => setView('home')}>
           <Layers3 size={18} />
-          Infraestructura<span>{servers.total}</span>
-        </div>
+          Inicio<span>{servers.total}</span>
+        </button>
         <div className="sidebar-section">
           <span>TUS SERVIDORES</span>
           <button
@@ -601,7 +661,10 @@ function Workspace({ session, expired }: { session: Session; expired: () => void
             <button
               key={server.id}
               className={`server-nav ${selected === server.id ? 'selected' : ''}`}
-              onClick={() => setSelected(server.id)}
+              onClick={() => {
+                setSelected(server.id);
+                setView('status');
+              }}
             >
               <ServerIcon size={16} />
               <span>{server.name}</span>
@@ -635,7 +698,7 @@ function Workspace({ session, expired }: { session: Session; expired: () => void
         )}
         <div className="sidebar-bottom">
           <div className="foundation-badge">
-            <span className="dot" /> Apache y MRTG · Histórico
+            <span className="dot" /> Fuentes configurables · Histórico
           </div>
           <div className="account">
             <div className="avatar">A</div>
@@ -651,6 +714,9 @@ function Workspace({ session, expired }: { session: Session; expired: () => void
               <LogOut size={17} />
             </button>
           </div>
+          <button className="revoke-link" onClick={() => setView('mail')}>
+            Correo de la cuenta
+          </button>
           <button
             className="revoke-link"
             onClick={() =>
@@ -681,9 +747,7 @@ function Workspace({ session, expired }: { session: Session; expired: () => void
             <div>
               <span className="eyebrow">CENTRO DE CONTROL</span>
               <h1>Tu infraestructura</h1>
-              <p className="muted">
-                Apache Status y MRTG: tendencias, actividad observada e incidentes.
-              </p>
+              <p className="muted">Tu cuenta → servidores → resumen → gráficos y fuentes.</p>
             </div>
             <button className="primary" onClick={() => setServerForm('new')}>
               <Plus size={17} />
@@ -708,37 +772,67 @@ function Workspace({ session, expired }: { session: Session; expired: () => void
               </button>
             </div>
           )}
-          <nav className="overview-controls" aria-label="Vistas del servidor">
-            {(
-              [
-                ['status', 'Estado del servidor'],
-                ['incidents', 'Incidentes'],
-                ['configuration', 'Configuración'],
-                ['mail', 'Correo'],
-              ] as const
-            ).map(([key, label]) => (
-              <button
-                className="secondary"
-                key={key}
-                aria-pressed={view === key}
-                onClick={() => setView(key)}
-              >
-                {label}
-              </button>
-            ))}
-          </nav>
-          {(view === 'status' || view === 'incidents') && selected && (
+          {view === 'home' && (
+            <Dashboard
+              open={async (id) => {
+                if (!servers.items.some((s) => s.id === id)) {
+                  const server = await api<Server>(`/servers/${id}`);
+                  setServers((old) => ({ ...old, items: [...old.items, server] }));
+                }
+                setSelected(id);
+                setView('status');
+              }}
+              configureMail={() => setView('mail')}
+            />
+          )}
+          {view !== 'home' && (
+            <nav className="overview-controls" aria-label="Vistas del servidor">
+              {(
+                [
+                  ['home', 'Todos los servidores'],
+                  ['status', 'Estado del servidor'],
+                  ['charts', 'Gráficos y rankings'],
+                  ['incidents', 'Incidentes'],
+                  ['configuration', 'Configuración'],
+                  ['mail', 'Correo'],
+                ] as const
+              ).map(([key, label]) => (
+                <button
+                  className="secondary"
+                  key={key}
+                  aria-pressed={view === key}
+                  onClick={() => setView(key)}
+                >
+                  {label}
+                </button>
+              ))}
+            </nav>
+          )}
+          {(view === 'status' || view === 'incidents' || view === 'charts') && selected && (
             <ServerOverview
               key={selected}
               serverId={selected}
-              view={view}
+              view={view === 'charts' ? 'status' : view}
+              detailMode={view === 'charts'}
+              showCharts={() => setView('charts')}
+              configure={() => setView('configuration')}
+              openSource={(id) => {
+                const source = services.items.find((s) => s.id === id);
+                if (source) setDiagnostic(source);
+                else
+                  void api<Service>(`/services/${id}/status`)
+                    .then(setDiagnostic)
+                    .catch((e) => setError(e.message));
+              }}
               openIncidents={() => setView('incidents')}
             />
           )}
-          {(view === 'status' || view === 'incidents') && !selected && (
-            <p>Añade un servidor y configura sus servicios Apache Status y MRTG para empezar.</p>
+          {(view === 'status' || view === 'incidents' || view === 'charts') && !selected && (
+            <p>Añade un servidor y configura las fuentes que publique.</p>
           )}
-          {view === 'mail' && <MailConfiguration csrf={session.csrf_token} />}
+          {view === 'mail' && (
+            <MailConfiguration csrf={session.csrf_token} accountEmail={session.email} />
+          )}
           {view === 'configuration' && (
             <>
               <section className="stats" aria-label="Resumen">
@@ -925,7 +1019,8 @@ function Workspace({ session, expired }: { session: Session; expired: () => void
                                   <div>
                                     <strong>{service.name}</strong>
                                     {(service.kind === 'apache_status' ||
-                                      service.kind === 'mrtg') && (
+                                      service.kind === 'mrtg' ||
+                                      service.kind === 'goaccess') && (
                                       <button
                                         className="secondary"
                                         onClick={() => setDiagnostic(service)}
@@ -1048,7 +1143,9 @@ function Workspace({ session, expired }: { session: Session; expired: () => void
       </div>
       {diagnostic && (
         <Dialog title={`Diagnóstico · ${diagnostic.name}`} close={() => setDiagnostic(null)}>
-          {diagnostic.kind === 'mrtg' ? (
+          {diagnostic.kind === 'goaccess' ? (
+            <GoAccessDiagnostics serviceId={diagnostic.id} />
+          ) : diagnostic.kind === 'mrtg' ? (
             <MrtgDiagnostics serviceId={diagnostic.id} csrf={session.csrf_token} />
           ) : (
             <ApacheDiagnostics serviceId={diagnostic.id} />

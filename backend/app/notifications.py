@@ -30,9 +30,16 @@ def send(config, incident, transition):
         f"Incidente: {incident.id}\nServidor: {incident.server_id}\nServicio: {incident.service_id}\nSujeto: {incident.subject}\nEstado: {incident.status}\nSeveridad: {incident.severity}\nValor observado: {evidence.get('value')}\nReferencia: {evidence.get('reference')}\n\nSe comparan observaciones de Apache Status y MRTG. No son visitas totales, no confirman errores 500 y no demuestran causalidad. Consulta Incidentes en el panel."
     )
     # Certificate verification is mandatory. No cleartext SMTP mode is offered.
-    with smtplib.SMTP_SSL(
-        config["host"], config["port"], timeout=10, context=ssl.create_default_context()
-    ) as smtp:
+    context = ssl.create_default_context()
+    if config.get("security", "tls") == "starttls":
+        smtp = smtplib.SMTP(config["host"], config["port"], timeout=10)
+    else:
+        smtp = smtplib.SMTP_SSL(config["host"], config["port"], timeout=10, context=context)
+    with smtp:
+        if config.get("security") == "starttls":
+            smtp.ehlo()
+            smtp.starttls(context=context)
+            smtp.ehlo()
         if config.get("username"):
             smtp.login(config["username"], config.get("password", ""))
         smtp.send_message(message)

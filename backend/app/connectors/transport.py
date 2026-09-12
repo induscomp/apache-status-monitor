@@ -43,9 +43,22 @@ def public_addresses(host: str) -> list[str]:
     return [str(x) for x in addresses]
 
 
-def fetch(url: str, credentials: dict | None = None, auto: bool = False) -> str:
+def fetch(
+    url: str,
+    credentials: dict | None = None,
+    auto: bool = False,
+    *,
+    authorized_origin: str | None = None,
+    allow_http: bool = False,
+) -> str:
     settings = get_settings()
-    url = validate_service_url(url, settings.allowed_monitor_origins, settings.allowed_http_origins)
+    url = validate_service_url(
+        url,
+        [authorized_origin] if authorized_origin else settings.allowed_monitor_origins,
+        [authorized_origin]
+        if authorized_origin and allow_http
+        else ([] if authorized_origin else settings.allowed_http_origins),
+    )
     parsed = urlsplit(url)
     if credentials and parsed.scheme != "https":
         raise FetchError("Las credenciales requieren HTTPS.")

@@ -2,7 +2,7 @@
 
 ## Modelo y procesos
 
-Un servidor agrupa varios servicios. Cada servicio tiene tipo (`apache_status` o `mrtg`), nombre, URL, intervalo (300 segundos), opciones, credenciales opcionales, estado y revisión. Se admiten varios servicios del mismo tipo. Los nombres de servidor son únicos; los de servicio son únicos dentro de su servidor.
+Un servidor agrupa varios servicios. Cada servicio tiene tipo (`apache_status`, `mrtg` o `goaccess`), nombre, URL, intervalo (300 segundos), opciones, credenciales opcionales, estado y revisión. Se admiten varios servicios del mismo tipo. Los nombres de servidor son únicos; los de servicio son únicos dentro de su servidor.
 
 PostgreSQL almacena `servers`, `services`, `service_revisions`, `admins`, `auth_sessions`, `rate_buckets`, `audit_events` y `component_heartbeats`. Cada edición de servicio crea una revisión sin credenciales ni ciphertext. Archivar un servidor suspende efectivamente todos sus servicios conservando sus estados individuales. No hay borrado físico en la API.
 
@@ -19,7 +19,7 @@ Los snapshots, dominios, IP e incidentes se asocian al servicio y su revisión. 
 
 Solo `migrate` y PostgreSQL reciben la credencial propietaria. El rol de aplicación `smon` no puede crear roles, bases o tablas ni es superusuario. El propietario aplica migraciones y concede permisos de datos.
 
-Los conectores Apache y MRTG están implementados. El worker recoge las dos fuentes públicas y ejecuta análisis y notificaciones; no hay carga de plugins arbitrarios. Ver [Apache](apache.md), [MRTG](mrtg.md) y [análisis](analysis.md).
+Los conectores Apache, MRTG y GoAccess están implementados. El worker recoge las fuentes públicas configuradas y ejecuta análisis y notificaciones; no hay carga de plugins arbitrarios. Ver [Apache](apache.md), [MRTG](mrtg.md) y [análisis](analysis.md).
 
 ## API implementada
 
@@ -32,6 +32,9 @@ Prefijo `/api/v1`. Access obligatorio en producción; recursos privados requiere
 | POST /auth/logout | Revocar sesión actual |
 | POST /auth/revoke-sessions | Revocar todas las sesiones |
 | GET /connectors | Tipos y estado de implementación |
+| GET /dashboard | Resumen paginado de servidores y fuentes de la cuenta |
+| GET /servers/{id} | Configuración de un servidor |
+| GET /services/{id}/goaccess | Último informe, frescura e histórico de resúmenes |
 | GET, POST /servers | Listar/crear servidores |
 | PUT /servers/{id} | Editar, archivar o restaurar |
 | GET, POST /servers/{id}/services | Listar/crear servicios |
@@ -57,7 +60,7 @@ Credenciales de endpoints y secreto TOTP cifrados con Fernet y clave externa. Nu
 
 ## Destinos y límites actuales
 
-Orígenes exactos mediante `SMON_ALLOWED_MONITOR_ORIGINS`; HTTP requiere además `SMON_ALLOWED_HTTP_ORIGINS`. Se rechazan credenciales/query en URL, esquemas ajenos a HTTP(S), literales no públicos y caracteres ambiguos. Basic solo se permite con HTTPS.
+La cuenta administradora puede autorizar el origen exacto por servicio con `options.authorize_origin`; HTTP requiere además `options.allow_http`. Para servicios sin esta autorización, se mantienen `SMON_ALLOWED_MONITOR_ORIGINS` y `SMON_ALLOWED_HTTP_ORIGINS` como listas del operador. Se rechazan credenciales/query en URL, esquemas ajenos a HTTP(S), literales no públicos y caracteres ambiguos. Basic solo se permite con HTTPS.
 
 El transporte valida DNS IPv4/IPv6, rechaza redes internas y conecta a una IP aprobada conservando TLS/hostname. No sigue redirecciones ni proxies ambientales. Limita tamaño, tiempo y concurrencia. Apache y MRTG tienen recogidas independientes, bloqueo por servicio e idempotencia.
 
@@ -71,3 +74,5 @@ Logs de aplicación JSON con evento, método y duración; sin URL, query, cuerpo
 - [OWASP SSRF](https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html)
 - [Validación de JWT Access](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/validating-json/)
 - [PyOTP](https://pyauth.github.io/pyotp/)
+
+GoAccess conserva informes normalizados en `goaccess_reports` y estado de consulta independiente en `goaccess_states`, incorporados por la migración 005. Ver [fuentes opcionales y GoAccess](goaccess.md).

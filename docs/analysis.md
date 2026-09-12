@@ -1,3 +1,5 @@
+La navegación comienza en **Inicio → Mis servidores → Ver servidor**. El resumen conserva la franja temporal; **Gráficos y rankings** amplía los datos. Las fuentes se configuran por servidor y el correo por cuenta. Consulta [fuentes opcionales y GoAccess](goaccess.md).
+
 # Estado del servidor e incidentes
 
 ## Fuentes y uso
@@ -43,7 +45,7 @@ Dos muestras anómalas consecutivas abren un incidente. Tres muestras válidas r
 
 ## Email privado
 
-En **Correo**, configura servidor SMTP, puerto de TLS directo (habitualmente 465), usuario/contraseña si se requieren, remitente y destinatario. La contraseña se cifra con la clave privada de la instalación y nunca vuelve al navegador. El canal está **desactivado por defecto**. No se necesita correo para recoger datos o consultar incidentes.
+En **Correo de la cuenta**, configura servidor SMTP, TLS directo (habitualmente 465) o STARTTLS obligatorio (habitualmente 587), usuario/contraseña si se requieren, remitente y destinatario. La contraseña se cifra con la clave privada de la instalación y nunca vuelve al navegador. El canal está **desactivado por defecto**. No se necesita correo para recoger datos o consultar incidentes.
 
 La cola registra apertura, escalado, resolución y recordatorios con cooldown de una hora. No envía aperturas históricas de más de quince minutos ni entregas pendientes de más de una hora. Un fallo ambiguo de SMTP queda como `uncertain`: no se reintenta automáticamente porque el servidor pudo aceptar el mensaje antes de cortarse la conexión. Un proceso interrumpido durante el envío se marca igualmente para revisión. Consulta «Últimas entregas» en Correo. No se garantiza recepción hasta configurar y validar el proveedor real.
 

@@ -153,8 +153,12 @@ def test_pagination_input_validation_and_pending_health(logged_in):
     assert health["database"] == "ok" and health["apache_collector"] == "available"
     assert health["scheduler"] == "unavailable"
     connectors = logged_in.get("/api/v1/connectors").json()
-    assert {x["kind"] for x in connectors} == {"apache_status", "mrtg"}
-    assert {x["kind"] for x in connectors if x["implemented"]} == {"apache_status", "mrtg"}
+    assert {x["kind"] for x in connectors} == {"apache_status", "mrtg", "goaccess"}
+    assert {x["kind"] for x in connectors if x["implemented"]} == {
+        "apache_status",
+        "mrtg",
+        "goaccess",
+    }
 
 
 def test_worker_only_updates_heartbeat_and_cleans_auth(logged_in):

@@ -40,11 +40,14 @@ class Credentials(StrictModel):
 class ServiceOptions(StrictModel):
     # Selected connector options, never arbitrary headers or proxy configuration.
     apache_auto: bool = True
+    authorize_origin: bool = False
+    allow_http: bool = False
+    goaccess_max_age_hours: int = Field(default=26, ge=1, le=720)
 
 
 class ServiceInput(StrictModel):
     name: Name
-    kind: Literal["apache_status", "mrtg"]
+    kind: Literal["apache_status", "mrtg", "goaccess"]
     url: str = Field(min_length=1, max_length=2048)
     interval_seconds: Literal[300] = 300
     enabled: bool = True

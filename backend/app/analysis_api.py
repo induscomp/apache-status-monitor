@@ -1,6 +1,7 @@
 import json
 import re
 from datetime import timedelta
+from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -8,6 +9,7 @@ from pydantic import Field, SecretStr, model_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.analysis import correlate
 from app.config import get_settings
 from app.db import get_db
 from app.geo import GEO_DIR
@@ -26,6 +28,7 @@ from app.models import (
 from app.notifications import configuration
 from app.schemas import StrictModel
 from app.security import authenticated, rate_limit
+from app.workspace_api import mrtg_only_series, source_summary
 
 router = APIRouter()
 
@@ -73,7 +76,7 @@ def server_state(
     chosen = (
         next((s for s in services if s.id == str(service_id)), None)
         if service_id
-        else next(iter(services), None)
+        else next((s for s in services if s.enabled and not s.archived), next(iter(services), None))
     )
     if service_id and chosen is None:
         raise HTTPException(404, "Servicio Apache no encontrado en este servidor.")
@@ -91,6 +94,12 @@ def server_state(
         else []
     )
     last = frames[-1] if frames else None
+    all_sources = db.scalars(
+        select(Service).where(Service.server_id == server.id).order_by(Service.created_at)
+    ).all()
+    independent_resources, independent_warnings = (
+        correlate(db, server.id, now()) if not chosen else ({}, [])
+    )
     incidents = db.scalars(
         select(Incident)
         .where(Incident.server_id == server.id, Incident.status == "open")
@@ -119,6 +128,8 @@ def server_state(
         state = "insufficient"
     elif quality_count >= 170:
         state = "observing"
+    if chosen is None:
+        state = "sources_only" if all_sources else "unconfigured"
     series = []
     previous = None
     previous_basis = None
@@ -152,6 +163,8 @@ def server_state(
     return {
         "state": state,
         "server": server.name,
+        "sources": [source_summary(db, s, server.archived) for s in all_sources],
+        "has_apache": chosen is not None,
         "services": [{"id": s.id, "name": s.name} for s in services],
         "service_id": chosen.id if chosen else None,
         "last_at": last.observed_at if last else None,
@@ -161,8 +174,8 @@ def server_state(
             "window_hours": 24,
             "excluded_recent_minutes": 30,
         },
-        "series": series,
-        "resources": last.resources if last else {},
+        "series": series if chosen else mrtg_only_series(db, server.id, hours),
+        "resources": last.resources if last else independent_resources,
         "metrics": last.metrics if last else {},
         "period_rankings": [
             {"domain": d, "appearances": n}
@@ -176,7 +189,10 @@ def server_state(
         "rankings": last.details or {}
         if last and last.observed_at >= now() - timedelta(days=30)
         else {},
-        "warnings": last.warnings if last else ["Esperando recogidas de Apache y MRTG."],
+        "warnings": last.warnings
+        if last
+        else independent_warnings
+        + ["Sin muestras Apache comparables. Solo se muestran las fuentes configuradas."],
         "open_incidents": len(incidents),
         "incident_summary": summarize(db, server.id),
         "backup": backup_status(db),
@@ -184,7 +200,7 @@ def server_state(
             "country": (GEO_DIR / "GeoLite2-Country.mmdb").is_file(),
             "asn": (GEO_DIR / "GeoLite2-ASN.mmdb").is_file(),
         },
-        "limitation": "Slots libres no prueban salud. Estas fuentes no confirman errores HTTP 500 ni visitas totales por dominio.",
+        "limitation": "Slots libres no prueban salud. Apache Status y MRTG no confirman errores HTTP 500 ni visitas totales por dominio. GoAccess refleja únicamente el periodo y la fecha de su informe.",
     }
 
 
@@ -229,6 +245,7 @@ def incident_list(
 
 
 class MailSettings(StrictModel):
+    security: Literal["tls", "starttls"] = "tls"
     enabled: bool = False
     host: str = Field(default="", max_length=253, pattern=r"^[a-zA-Z0-9.-]*$")
     port: int = Field(default=465, ge=1, le=65535)

@@ -19,8 +19,10 @@ from app.analysis_api import router as analysis_router
 from app.collection import latest
 from app.config import get_settings
 from app.connectors import CONNECTORS
-from app.connectors.policy import validate_service_url
+from app.connectors.policy import service_transport_options, validate_service_url
 from app.db import get_db
+from app.goaccess import router as goaccess_router
+from app.goaccess import status as goaccess_status
 from app.models import (
     AuditEvent,
     ComponentHeartbeat,
@@ -47,6 +49,7 @@ from app.security import (
     rate_limit,
 )
 from app.setup import router as setup_router
+from app.workspace_api import router as workspace_router
 
 logger = logging.getLogger("smon")
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -187,6 +190,8 @@ def create_app() -> FastAPI:
     api.include_router(setup_router)
     api.include_router(observations_router)
     api.include_router(mrtg_router)
+    api.include_router(goaccess_router)
+    api.include_router(workspace_router)
     api.include_router(analysis_router)
 
     @api.post("/auth/login")
@@ -277,6 +282,7 @@ def create_app() -> FastAPI:
             "scheduler_last_seen": heartbeat.seen_at if heartbeat else None,
             "apache_collector": "available",
             "mrtg_collector": "available",
+            "goaccess_collector": "available",
             "email": "not_configured",
         }
 
@@ -307,6 +313,12 @@ def create_app() -> FastAPI:
                 status = "stale"
         if service.kind == "mrtg" and service.id:
             status, last, success = mrtg_service_status(object_session(service), service)
+        if service.kind == "goaccess" and service.id:
+            from app.models import GoAccessState
+
+            last = object_session(service).get(GoAccessState, service.id)
+            status = goaccess_status(object_session(service), service)
+            success = last if last and last.status != "error" else None
         return {
             "id": service.id,
             "server_id": service.server_id,
@@ -331,6 +343,8 @@ def create_app() -> FastAPI:
             else None,
             "capabilities": ["workers", "global_metrics"]
             if service.kind == "apache_status"
+            else ["report_totals", "report_freshness"]
+            if service.kind == "goaccess"
             else ["discovery", "numeric_statistics"],
             "created_at": service.created_at,
         }
@@ -369,8 +383,18 @@ def create_app() -> FastAPI:
 
     def checked_url(payload):
         try:
+            from types import SimpleNamespace
+
+            scoped = service_transport_options(
+                SimpleNamespace(url=payload.url, options=payload.options.model_dump())
+            )
+            origin = scoped.get("authorized_origin")
             url = validate_service_url(
-                payload.url, settings.allowed_monitor_origins, settings.allowed_http_origins
+                payload.url,
+                [origin] if origin else settings.allowed_monitor_origins,
+                [origin]
+                if origin and scoped.get("allow_http")
+                else ([] if origin else settings.allowed_http_origins),
             )
             if payload.credentials and not url.startswith("https://"):
                 raise ValueError("Credentials require HTTPS")
@@ -420,6 +444,10 @@ def create_app() -> FastAPI:
         db.add(AuditEvent(action="server.update", target_id=item.id))
         db.commit()
         return server_result(item)
+
+    @api.get("/servers/{server_id}")
+    def one_server(server_id: UUID, auth=Depends(authenticated), db: Session = Depends(get_db)):
+        return server_result(get_server(db, server_id))
 
     @api.get("/servers/{server_id}/services")
     def services(

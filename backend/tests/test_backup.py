@@ -195,3 +195,19 @@ def test_failed_verification_invalidates_availability(monkeypatch):
     with session_factory()() as db:
         assert db.get(ComponentHeartbeat, "backup") is None
         assert db.get(ComponentHeartbeat, "scheduler") is not None
+
+
+def test_rotation_orders_legacy_and_versioned_copies_by_time(tmp_path):
+    import os
+
+    from app.backup import prune
+
+    for day in range(1, 7):
+        (tmp_path / f"backup-daily-2026-09-{day:02d}-abcdef12.smon").write_text("synthetic")
+    old = tmp_path / "backup-daily-2026-09-01.smon"
+    old.write_text("synthetic")
+    os.utime(old, (1, 1))
+    (tmp_path / "backup-daily-2026-09-07-abcdef12.smon").write_text("synthetic")
+    prune(tmp_path)
+    assert not old.exists()
+    assert len(list(tmp_path.glob("*.smon"))) == 7

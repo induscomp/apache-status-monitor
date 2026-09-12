@@ -59,7 +59,7 @@ test('administrator configures independent services, persists changes and revoke
   await page.getByRole('button', { name: 'Entrar al panel' }).click();
   await expect(page.getByRole('heading', { name: 'Tu infraestructura' })).toBeVisible();
 
-  await page.getByRole('button', { name: 'Configuración', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Mis servidores', exact: true })).toBeVisible();
 
   async function server(name: string) {
     await page.getByRole('button', { name: 'Añadir servidor', exact: true }).last().click();
@@ -85,6 +85,8 @@ test('administrator configures independent services, persists changes and revoke
       await expect(
         page.getByText('MRTG se lee siguiendo los enlaces', { exact: false }),
       ).toBeVisible();
+    if (kind === 'mrtg')
+      await page.getByLabel('Permitir HTTP sin cifrado', { exact: false }).check();
     await page.getByRole('button', { name: 'Guardar servicio' }).click();
     await expect(page.getByRole('dialog')).toHaveCount(0);
     await expect(page.getByRole('row').filter({ hasText: name })).toBeVisible();
@@ -197,6 +199,7 @@ test('administrator configures independent services, persists changes and revoke
   await timeSegment.focus();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('tooltip')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Gráficos y rankings', exact: true }).click();
   await page.getByRole('button', { name: 'example.test', exact: true }).first().click();
   await expect(page.getByRole('heading', { name: 'Histórico de example.test' })).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
@@ -364,8 +367,10 @@ test('administrator configures independent services, persists changes and revoke
   await service('Apache principal', 'apache_status');
   await expect(page.getByRole('row')).toHaveCount(2);
   await page.getByRole('button', { name: 'Atlas · Producción', exact: true }).click();
+  await page.getByRole('button', { name: 'Configuración', exact: true }).click();
   await expect(page.getByRole('row')).toHaveCount(4);
   await page.reload();
+  await page.getByRole('button', { name: 'Atlas · Producción', exact: true }).click();
   await page.getByRole('button', { name: 'Configuración', exact: true }).click();
   await expect(
     page
@@ -398,6 +403,68 @@ test('administrator configures independent services, persists changes and revoke
     );
   }
   expect(noPageOverflow).toBe(true);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.getByRole('button', { name: 'Inicio', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Mis servidores', exact: true })).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Ver servidor Boreal · Staging', exact: true }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Configurar correo de la cuenta', exact: true }).click();
+  await expect(page.getByLabel('Destinatario', { exact: true })).toHaveValue('admin@example.test');
+  await page.getByLabel('Seguridad SMTP').selectOption('starttls');
+  await expect(page.getByLabel('Puerto TLS', { exact: true })).toHaveValue('587');
+  await page.unroute('**/api/v1/servers/*/analysis?*');
+  await server('Informe público');
+  await page.getByRole('button', { name: 'Añadir servicio', exact: true }).click();
+  await page.getByLabel('Tipo de servicio').selectOption('goaccess');
+  await page.getByLabel('Nombre del servicio').fill('Informe GoAccess');
+  await page
+    .getByLabel('URL del informe GoAccess')
+    .fill('https://another.example.test/report.html');
+  await page.getByRole('button', { name: 'Guardar servicio' }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Estado del servidor', exact: true }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Resumen de las fuentes disponibles' }),
+  ).toBeVisible();
+  await expect(page.getByLabel('Servicio Apache', { exact: true })).toHaveCount(0);
+  await page.route('**/api/v1/services/*/goaccess', (route) =>
+    route.fulfill({
+      json: {
+        status: 'stale',
+        checked_at: overviewAt,
+        warnings: ['Informe desactualizado'],
+        note: 'No describe el estado actual.',
+        history: [],
+        report: {
+          generated_at: '2026-03-13T03:00:03Z',
+          observed_at: overviewAt,
+          summary: { valid_requests: 245684 },
+          panels: {
+            vhosts: [
+              { label: '<img src=x onerror=alert(1)>', hits: 3, visitors: 2, bytes: 8, method: '' },
+            ],
+          },
+        },
+      },
+    }),
+  );
+  await page.getByRole('button', { name: 'Ver detalle de Informe GoAccess', exact: true }).click();
+  const goaccessDialog = page.getByRole('dialog');
+  await expect(
+    goaccessDialog.getByRole('heading', { name: 'GoAccess · Desactualizado' }),
+  ).toBeVisible();
+  await goaccessDialog
+    .getByText('Dominios del informe (1 filas disponibles)', { exact: true })
+    .click();
+  await expect(
+    goaccessDialog.getByText('<img src=x onerror=alert(1)>', { exact: true }),
+  ).toBeVisible();
+  await expect(goaccessDialog.locator('img')).toHaveCount(0);
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath('goaccess-mobile.png'), fullPage: true });
+  await goaccessDialog.getByLabel('Cerrar', { exact: true }).click();
   await page.getByRole('button', { name: 'Cerrar sesión', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Bienvenido de nuevo' })).toBeVisible();
   expect((await page.request.get('/api/v1/servers')).status()).toBe(401);

@@ -24,4 +24,4 @@ La API `/api/v1/services/{id}/observations` lista muestras y `/api/v1/observatio
 
 ## Trabajo pendiente del hito
 
-Esta entrega permite empezar a observar Apache. SMON-002 aún no está cerrado: faltan agregados horarios con retención anual, backup diario cifrado y restauración automatizada. No hay gráficos temporales, alertas ni diagnóstico automático de ataques. Mantén las copias privadas manuales; los originales de depuración no deben incluirse en backups de larga retención.
+Los gráficos temporales, anomalías por dominio, correlación MRTG y correo están descritos en [análisis](analysis.md). El [backup cifrado y restauración](backups.md) está implementado; los agregados horarios con retención anual siguen pendientes.

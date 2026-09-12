@@ -9,6 +9,7 @@ from sqlalchemy.orm import defer
 
 from app.config import get_settings
 from app.connectors.mrtg import allowed_detail, discover, parse_detail
+from app.connectors.policy import service_transport_options
 from app.connectors.transport import fetch
 from app.db import session_factory
 from app.models import MrtgDiscovery, MrtgMetric, MrtgObservation, Server, Service, now
@@ -59,7 +60,10 @@ def discover_service(service_id):
         state.attempted_at = now()
         state.requested = False
         try:
-            urls = discover(service.url, fetch(service.url, credentials(service)))
+            urls = discover(
+                service.url,
+                fetch(service.url, credentials(service), **service_transport_options(service)),
+            )
             existing = {
                 m.url: m
                 for m in db.scalars(
@@ -121,7 +125,7 @@ def collect_metric(metric_id):
             warnings=[],
         )
         try:
-            body = fetch(metric.url, credentials(service))
+            body = fetch(metric.url, credentials(service), **service_transport_options(service))
             sample.raw_encrypted = get_settings().cipher().encrypt(body.encode()).decode()
             parsed = parse_detail(body, metric.configuration.get("timezone"), stamp)
             if parsed["title"]:

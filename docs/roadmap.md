@@ -15,7 +15,7 @@ Cada hito requiere explicar alcance, implementar en rama, probar, documentar y c
 
 ## Fuentes autorizadas
 
-Exclusivamente Apache Status público y MRTG público. No se añadirán shell remoto, logs, PHP-FPM, systemd ni APIs del hosting. GeoIP es un enriquecimiento local opcional, y SMTP un canal de notificación. Los slots libres nunca prueban salud; las incidencias se interpretan con memoria, swap y carga MRTG. Ver [análisis](analysis.md).
+Fuentes públicas configurables: Apache Status, MRTG y, como ampliación solicitada, informes GoAccess. GoAccess es independiente y sus datos antiguos no alimentan alertas actuales. No se añadirán shell remoto, logs, PHP-FPM, systemd ni APIs del hosting. GeoIP es un enriquecimiento local opcional, y SMTP un canal de notificación. Los slots libres nunca prueban salud; las incidencias se interpretan con memoria, swap y carga MRTG. Ver [análisis](analysis.md).
 
 ## Contrato de datos
 

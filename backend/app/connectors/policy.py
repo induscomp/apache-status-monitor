@@ -53,3 +53,11 @@ def validate_service_url(value: str, allowed: list[str], http_allowed: list[str]
         if not address.is_global:
             raise ValueError("Non-public address literals are prohibited")
     return origin + (parsed.path or "/")
+
+
+def service_transport_options(service):
+    if not service.options.get("authorize_origin", False):
+        return {}
+    parsed = urlsplit(service.url)
+    origin = canonical_origin(urlunsplit((parsed.scheme, parsed.netloc, "", "", "")))
+    return {"authorized_origin": origin, "allow_http": service.options.get("allow_http", False)}

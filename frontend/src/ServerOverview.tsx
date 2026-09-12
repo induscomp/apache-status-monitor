@@ -13,6 +13,8 @@ import { api } from './api';
 import './overview.css';
 import { IncidentTimeline } from './IncidentTimeline';
 import type { IncidentSummary } from './IncidentTimeline';
+import { SourceList } from './Dashboard';
+import type { Source } from './Dashboard';
 
 type Resource = {
   value: number;
@@ -33,6 +35,8 @@ type Rankings = {
   posts?: { domain: string; ip: string; path: string; count: number }[];
 };
 type Overview = {
+  sources?: Source[];
+  has_apache?: boolean;
   backup?: { state: string; last_at: string | null };
   incident_summary?: IncidentSummary;
   state: string;
@@ -84,6 +88,8 @@ const labels: Record<string, string> = {
   http_processes: 'Procesos HTTP',
 };
 const states: Record<string, string> = {
+  sources_only: 'Resumen de las fuentes disponibles',
+  unconfigured: 'Configura las fuentes de este servidor',
   learning: 'Aprendiendo el comportamiento habitual',
   insufficient: 'Datos insuficientes o incompletos',
   resource_pressure: 'Presión de recursos detectada',
@@ -258,10 +264,18 @@ export function ServerOverview({
   serverId,
   view,
   openIncidents,
+  detailMode = false,
+  showCharts,
+  configure,
+  openSource,
 }: {
   serverId: string;
   view: 'status' | 'incidents';
   openIncidents: () => void;
+  detailMode?: boolean;
+  showCharts: () => void;
+  configure: () => void;
+  openSource: (id: string) => void;
 }) {
   const [data, setData] = useState<Overview | null>(null);
   const [incidents, setIncidents] = useState<Incident[]>([]);
@@ -326,11 +340,13 @@ export function ServerOverview({
               Última muestra: {date(data.last_at)} · {data.open_incidents} incidentes abiertos
             </p>
             <p>{data.limitation}</p>
-            <p>
-              Referencia del dominio: {data.learning.valid_baseline_samples}/
-              {data.learning.required_samples} muestras válidas mínimas en 24 h; se excluyen los
-              últimos 30 minutos.
-            </p>
+            {data.has_apache !== false && (
+              <p>
+                Referencia del dominio: {data.learning.valid_baseline_samples}/
+                {data.learning.required_samples} muestras válidas mínimas en 24 h; se excluyen los
+                últimos 30 minutos.
+              </p>
+            )}
           </div>
           {view === 'incidents' ? (
             <>
@@ -399,22 +415,24 @@ export function ServerOverview({
                 </p>
               )}
               <div className="overview-controls">
-                <label>
-                  Servicio Apache
-                  <select
-                    value={service || data.service_id || ''}
-                    onChange={(e) => {
-                      setService(e.target.value);
-                      setDomain('');
-                    }}
-                  >
-                    {data.services.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                {data.has_apache !== false && (
+                  <label>
+                    Servicio Apache
+                    <select
+                      value={service || data.service_id || ''}
+                      onChange={(e) => {
+                        setService(e.target.value);
+                        setDomain('');
+                      }}
+                    >
+                      {data.services.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
                 <span>Últimas 24 horas · recogida cada 5 minutos</span>
               </div>
               {data.warnings.length > 0 && (
@@ -425,74 +443,64 @@ export function ServerOverview({
                   ))}
                 </details>
               )}
-              <ResourceCards values={data.resources} />
-              <div className="resource-grid">
-                {[
-                  ['active_connections', 'Workers con conexión observada'],
-                  ['active_requests', 'Requests activas R/W'],
-                  ['idle_workers', 'Workers idle'],
-                  ['free_slots', 'Slots libres'],
-                  ['req_per_sec', 'Req/s entre muestras'],
-                  ['bytes_per_sec', 'Bytes/s entre muestras'],
-                  ['request_ms', 'Media ms/request entre muestras'],
-                ].map(([key, label]) => (
-                  <section className="overview-card" key={key}>
-                    <h3>{label}</h3>
-                    <strong className="metric-number">{number(data.metrics[key])}</strong>
-                  </section>
-                ))}
-              </div>
-              <div className="overview-grid">
-                <Chart
-                  title="Apache: actividad observada"
-                  data={data.series}
-                  lines={[
-                    ['active_connections', 'Workers con conexión'],
-                    ['active_requests', 'Requests R/W'],
-                  ]}
-                />
-                {['ram_free', 'swap_free', 'load'].map((key) => (
-                  <Chart
-                    key={key}
-                    title={`${labels[key]} · ${data.resources[key]?.unit || 'unidad de origen'}`}
-                    data={data.series}
-                    lines={[[key, labels[key]]]}
-                  />
-                ))}
-              </div>
-              <details
-                className="overview-card"
-                onToggle={(e) => setMoreCharts(e.currentTarget.open)}
-              >
-                <summary>
-                  Más gráficos: CPU, procesos, conexiones TCP, tasas y tiempos Apache
-                </summary>
-                {moreCharts && (
+              {(!detailMode || data.has_apache === false) && (
+                <section className="overview-card">
+                  <h2>Fuentes de este servidor</h2>
+                  <p>Configura solo los sistemas disponibles en este servidor.</p>
+                  <SourceList sources={data.sources || []} open={openSource} />
+                  <div className="overview-controls">
+                    <button className="secondary" onClick={configure}>
+                      Configurar fuentes
+                    </button>
+                    <button className="primary" onClick={showCharts}>
+                      Ampliar gráficos y rankings
+                    </button>
+                  </div>
+                </section>
+              )}
+              {Object.keys(data.resources).length > 0 && <ResourceCards values={data.resources} />}
+              {detailMode && data.has_apache === false && data.series.length > 0 && (
+                <div className="overview-grid">
+                  {Object.keys(labels)
+                    .filter((key) => data.series.some((point) => point[key] != null))
+                    .map((key) => (
+                      <Chart
+                        key={key}
+                        title={`${labels[key]} · ${data.resources[key]?.unit || 'unidad de origen'}`}
+                        data={data.series}
+                        lines={[[key, labels[key]]]}
+                      />
+                    ))}
+                </div>
+              )}
+              {detailMode && data.has_apache !== false && (
+                <>
+                  <div className="resource-grid">
+                    {[
+                      ['active_connections', 'Workers con conexión observada'],
+                      ['active_requests', 'Requests activas R/W'],
+                      ['idle_workers', 'Workers idle'],
+                      ['free_slots', 'Slots libres'],
+                      ['req_per_sec', 'Req/s entre muestras'],
+                      ['bytes_per_sec', 'Bytes/s entre muestras'],
+                      ['request_ms', 'Media ms/request entre muestras'],
+                    ].map(([key, label]) => (
+                      <section className="overview-card" key={key}>
+                        <h3>{label}</h3>
+                        <strong className="metric-number">{number(data.metrics[key])}</strong>
+                      </section>
+                    ))}
+                  </div>
                   <div className="overview-grid">
                     <Chart
-                      title="Workers idle y slots libres"
+                      title="Apache: actividad observada"
                       data={data.series}
                       lines={[
-                        ['idle_workers', 'Idle'],
-                        ['free_slots', 'Slots libres'],
+                        ['active_connections', 'Workers con conexión'],
+                        ['active_requests', 'Requests R/W'],
                       ]}
                     />
-                    <Chart
-                      title="Peticiones por segundo entre muestras"
-                      data={data.series}
-                      lines={[['req_per_sec', 'Req/s']]}
-                    />
-                    <Chart
-                      title="Tráfico entre muestras (bytes/s)"
-                      data={data.series}
-                      lines={[['bytes_per_sec', 'Bytes/s']]}
-                    />
-                    <Chart
-                      title="Tiempo medio por request entre muestras (ms)"
-                      data={data.series}
-                      lines={[['request_ms', 'ms/request']]}
-                    />
-                    {['cpu', 'processes', 'tcp_connections', 'http_processes'].map((key) => (
+                    {['ram_free', 'swap_free', 'load'].map((key) => (
                       <Chart
                         key={key}
                         title={`${labels[key]} · ${data.resources[key]?.unit || 'unidad de origen'}`}
@@ -501,75 +509,118 @@ export function ServerOverview({
                       />
                     ))}
                   </div>
-                )}
-              </details>
-              <h2>Dominios</h2>
-              <p>
-                Un worker puede conservar su última petición. Las apariciones acumuladas son
-                presencia en muestras, no visitas ni tráfico total. Los históricos están separados
-                por servicio.
-              </p>
-              <div className="overview-grid">
-                <section className="overview-card">
-                  <h3>Más conexiones activas ahora</h3>
-                  <div className="overview-table">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>Dominio</th>
-                          <th>Workers activos</th>
-                          <th>Apariciones actuales</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {data.domains.map((d) => (
-                          <tr key={d.domain}>
-                            <td>
-                              <button onClick={() => setDomain(d.domain)}>{d.domain}</button>
-                            </td>
-                            <td>{d.active}</td>
-                            <td>{d.appearances}</td>
-                          </tr>
+                  <details
+                    className="overview-card"
+                    onToggle={(e) => setMoreCharts(e.currentTarget.open)}
+                  >
+                    <summary>
+                      Más gráficos: CPU, procesos, conexiones TCP, tasas y tiempos Apache
+                    </summary>
+                    {moreCharts && (
+                      <div className="overview-grid">
+                        <Chart
+                          title="Workers idle y slots libres"
+                          data={data.series}
+                          lines={[
+                            ['idle_workers', 'Idle'],
+                            ['free_slots', 'Slots libres'],
+                          ]}
+                        />
+                        <Chart
+                          title="Peticiones por segundo entre muestras"
+                          data={data.series}
+                          lines={[['req_per_sec', 'Req/s']]}
+                        />
+                        <Chart
+                          title="Tráfico entre muestras (bytes/s)"
+                          data={data.series}
+                          lines={[['bytes_per_sec', 'Bytes/s']]}
+                        />
+                        <Chart
+                          title="Tiempo medio por request entre muestras (ms)"
+                          data={data.series}
+                          lines={[['request_ms', 'ms/request']]}
+                        />
+                        {['cpu', 'processes', 'tcp_connections', 'http_processes'].map((key) => (
+                          <Chart
+                            key={key}
+                            title={`${labels[key]} · ${data.resources[key]?.unit || 'unidad de origen'}`}
+                            data={data.series}
+                            lines={[[key, labels[key]]]}
+                          />
                         ))}
-                      </tbody>
-                    </table>
+                      </div>
+                    )}
+                  </details>
+                  <h2>Dominios</h2>
+                  <p>
+                    Un worker puede conservar su última petición. Las apariciones acumuladas son
+                    presencia en muestras, no visitas ni tráfico total. Los históricos están
+                    separados por servicio.
+                  </p>
+                  <div className="overview-grid">
+                    <section className="overview-card">
+                      <h3>Más conexiones activas ahora</h3>
+                      <div className="overview-table">
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>Dominio</th>
+                              <th>Workers activos</th>
+                              <th>Apariciones actuales</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {data.domains.map((d) => (
+                              <tr key={d.domain}>
+                                <td>
+                                  <button onClick={() => setDomain(d.domain)}>{d.domain}</button>
+                                </td>
+                                <td>{d.active}</td>
+                                <td>{d.appearances}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                    <section className="overview-card">
+                      <h3>Más apariciones en 24 horas</h3>
+                      <div className="overview-table">
+                        <table>
+                          <tbody>
+                            {data.period_rankings.map((d) => (
+                              <tr key={d.domain}>
+                                <td>
+                                  <button onClick={() => setDomain(d.domain)}>{d.domain}</button>
+                                </td>
+                                <td>{d.appearances}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
                   </div>
-                </section>
-                <section className="overview-card">
-                  <h3>Más apariciones en 24 horas</h3>
-                  <div className="overview-table">
-                    <table>
-                      <tbody>
-                        {data.period_rankings.map((d) => (
-                          <tr key={d.domain}>
-                            <td>
-                              <button onClick={() => setDomain(d.domain)}>{d.domain}</button>
-                            </td>
-                            <td>{d.appearances}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </section>
-              </div>
-              {domain && (
-                <Chart
-                  title={`Histórico de ${domain}`}
-                  data={data.series}
-                  lines={[
-                    ['domain_active', 'Workers activos'],
-                    ['domain_appearances', 'Apariciones'],
-                  ]}
-                />
+                  {domain && (
+                    <Chart
+                      title={`Histórico de ${domain}`}
+                      data={data.series}
+                      lines={[
+                        ['domain_active', 'Workers activos'],
+                        ['domain_appearances', 'Apariciones'],
+                      ]}
+                    />
+                  )}
+                  {(!data.geoip.country || !data.geoip.asn) && (
+                    <p>
+                      GeoIP local incompleto: instala las bases Country y ASN en la carpeta geoip
+                      para enriquecer las IPs. No se realizan consultas externas.
+                    </p>
+                  )}
+                  <Evidence rankings={data.rankings} />
+                </>
               )}
-              {(!data.geoip.country || !data.geoip.asn) && (
-                <p>
-                  GeoIP local incompleto: instala las bases Country y ASN en la carpeta geoip para
-                  enriquecer las IPs. No se realizan consultas externas.
-                </p>
-              )}
-              <Evidence rankings={data.rankings} />
             </>
           )}
         </>
@@ -579,6 +630,7 @@ export function ServerOverview({
 }
 
 type Mail = {
+  security?: 'tls' | 'starttls';
   enabled: boolean;
   host: string;
   port: number;
@@ -589,7 +641,7 @@ type Mail = {
   has_password?: boolean;
   deliveries?: { status: string; transition: string; created_at: string; error: string | null }[];
 };
-export function MailConfiguration({ csrf }: { csrf: string }) {
+export function MailConfiguration({ csrf, accountEmail }: { csrf: string; accountEmail: string }) {
   const [form, setForm] = useState<Mail>({
     enabled: false,
     host: '',
@@ -605,7 +657,7 @@ export function MailConfiguration({ csrf }: { csrf: string }) {
     void api<Mail>('/notifications')
       .then((v) => {
         if (live) {
-          setForm((f) => ({ ...f, ...v }));
+          setForm((f) => ({ ...f, ...v, recipient: v.recipient || accountEmail }));
           setReady(true);
         }
       })
@@ -618,11 +670,14 @@ export function MailConfiguration({ csrf }: { csrf: string }) {
   }, []);
   return (
     <section className="overview-card">
-      <h2>Correo de incidentes</h2>
+      <h2>Correo de la cuenta</h2>
       <p>
-        SMTP con TLS directo y certificado verificado (habitualmente puerto 465). Dos muestras
-        anómalas abren el incidente; tres recuperadas lo resuelven. Recordatorios como máximo cada
-        hora.
+        Configura el email de sistema que enviará las alertas de tus servidores y el destinatario
+        que las recibirá. La dirección de acceso es independiente.
+      </p>
+      <p>
+        SMTP con TLS directo o STARTTLS obligatorio y certificado verificado. Dos muestras anómalas
+        abren el incidente; tres recuperadas lo resuelven. Recordatorios como máximo cada hora.
       </p>
       <form
         className="mail-form"
@@ -630,6 +685,7 @@ export function MailConfiguration({ csrf }: { csrf: string }) {
           e.preventDefault();
           try {
             await api('/notifications', csrf, 'PUT', {
+              security: form.security || 'tls',
               enabled: form.enabled,
               host: form.host,
               port: form.port,
@@ -661,7 +717,7 @@ export function MailConfiguration({ csrf }: { csrf: string }) {
               {
                 host: 'Servidor SMTP',
                 username: 'Usuario SMTP',
-                sender: 'Remitente',
+                sender: 'Email de sistema (remitente)',
                 recipient: 'Destinatario',
               }[key]
             }
@@ -672,6 +728,22 @@ export function MailConfiguration({ csrf }: { csrf: string }) {
             />
           </label>
         ))}
+        <label>
+          Seguridad SMTP
+          <select
+            value={form.security || 'tls'}
+            onChange={(e) =>
+              setForm({
+                ...form,
+                security: e.target.value as 'tls' | 'starttls',
+                port: e.target.value === 'tls' ? 465 : 587,
+              })
+            }
+          >
+            <option value="tls">TLS directo (465)</option>
+            <option value="starttls">STARTTLS obligatorio (587)</option>
+          </select>
+        </label>
         <label>
           Puerto TLS
           <input

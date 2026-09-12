@@ -1,8 +1,10 @@
 # Apache Status Monitor
 
-Monitor open source para organizar varios servidores y sus servicios Apache Status y MRTG.
+Monitor open source para organizar varios servidores y sus fuentes Apache Status, MRTG y GoAccess.
 
-Monitorización cada cinco minutos con **dos únicas fuentes remotas: Apache Status público y MRTG público**. Incluye estado del servidor, gráficos temporales, rankings por dominio/IP/ruta, correlación con memoria/carga e incidentes basados en el histórico de cada dominio. Correo SMTP configurable y GeoIP local opcional. Consulta [uso, interpretación y límites](docs/analysis.md).
+Monitorización cada cinco minutos con **fuentes públicas configurables por servidor: Apache Status, MRTG y GoAccess**. Incluye estado del servidor, gráficos temporales, rankings por dominio/IP/ruta, correlación con memoria/carga e incidentes basados en el histórico de cada dominio. Correo SMTP configurable y GeoIP local opcional. Consulta [uso, interpretación y límites](docs/analysis.md).
+
+GoAccess conserva los totales del periodo del informe y muestra su antigüedad; no mezcla esos totales con muestras instantáneas ni alertas actuales. La home reúne los servidores, con acceso a cada resumen y sus detalles.
 
 ## Incluye
 
@@ -30,8 +32,9 @@ Abre **http://localhost:8187** y completa el asistente web: copia la clave del a
 
 ## Arquitectura y documentación
 
-React + TypeScript + Vite → Nginx → FastAPI → PostgreSQL. Un worker independiente con APScheduler recoge Apache y MRTG, correlaciona muestras, evalúa incidentes y procesa el correo configurado. Cloudflared tiene un perfil opcional dedicado.
+React + TypeScript + Vite → Nginx → FastAPI → PostgreSQL. Un worker independiente con APScheduler recoge Apache, MRTG e informes GoAccess, correlaciona muestras, evalúa incidentes y procesa el correo configurado. Cloudflared tiene un perfil opcional dedicado.
 
+- [Fuentes por servidor, GoAccess y correo de la cuenta](docs/goaccess.md)
 - [Estado del servidor, incidentes, correo y GeoIP](docs/analysis.md)
 - [Backup cifrado y recuperación](docs/backups.md)
 - [Arquitectura y seguridad](docs/architecture.md)

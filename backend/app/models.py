@@ -216,3 +216,26 @@ class EmailDelivery(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     status: Mapped[str] = mapped_column(String(20), default="pending")
     error: Mapped[str | None] = mapped_column(String(200), nullable=True)
+
+
+class GoAccessReport(Base):
+    __tablename__ = "goaccess_reports"
+    __table_args__ = (UniqueConstraint("service_id", "revision", "fingerprint"),)
+    id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=identifier)
+    service_id: Mapped[str] = mapped_column(ForeignKey("services.id"), index=True)
+    revision: Mapped[int] = mapped_column()
+    fingerprint: Mapped[str] = mapped_column(String(64))
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, index=True)
+    generated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    summary: Mapped[dict] = mapped_column(JSONB)
+    panels: Mapped[dict] = mapped_column(JSONB)
+
+
+class GoAccessState(Base):
+    __tablename__ = "goaccess_states"
+    service_id: Mapped[str] = mapped_column(ForeignKey("services.id"), primary_key=True)
+    revision: Mapped[int] = mapped_column()
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str] = mapped_column(String(20))
+    report_id: Mapped[str | None] = mapped_column(ForeignKey("goaccess_reports.id"), nullable=True)
+    warnings: Mapped[list] = mapped_column(JSONB, default=list)

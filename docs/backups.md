@@ -49,3 +49,5 @@ docker compose -p smon-restore-check -f compose.yaml -f compose.local.yaml down 
 ```
 
 Para recuperación real, prepara una instalación independiente con la versión compatible, las dos claves originales y una base vacía; sigue el mismo proceso antes de habilitar web/worker. No se borra ni reemplaza automáticamente la instalación anterior.
+
+Los nombres de las nuevas copias incluyen los primeros ocho caracteres de la huella de esquema. Una migración puede generar una nueva copia en el mismo día sin sobrescribir la anterior. La rotación reconoce también los nombres antiguos y conserva siete copias diarias y cuatro semanales; en el mismo periodo prioriza la copia más reciente. La restauración exige un esquema compatible, por lo que deben conservarse la revisión de código y las claves correspondientes.

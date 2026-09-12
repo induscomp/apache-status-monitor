@@ -8,6 +8,7 @@ from sqlalchemy.orm import defer
 
 from app.config import get_settings
 from app.connectors.apache import parse_auto, parse_html
+from app.connectors.policy import service_transport_options
 from app.connectors.transport import FetchError, fetch
 from app.db import session_factory
 from app.models import ApacheObservation, Server, Service, now
@@ -60,14 +61,18 @@ def collect_service(service_id):
                 if service.credentials_encrypted
                 else None
             )
-            originals["html"] = fetch(service.url, credentials)
+            originals["html"] = fetch(
+                service.url, credentials, **service_transport_options(service)
+            )
             parsed = parse_html(originals["html"])
             result.metrics = parsed["metrics"]
             result.workers = parsed["workers"]
             result.warnings = parsed["warnings"]
             if service.options.get("apache_auto", True):
                 try:
-                    originals["auto"] = fetch(service.url, credentials, auto=True)
+                    originals["auto"] = fetch(
+                        service.url, credentials, auto=True, **service_transport_options(service)
+                    )
                     result.metrics["global"] = parse_auto(originals["auto"])
                 except Exception:
                     result.warnings.append("No se pudieron obtener las métricas globales ?auto.")

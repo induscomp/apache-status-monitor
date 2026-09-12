@@ -95,3 +95,7 @@ Haz copia manual antes de cambiar esquema. Actualiza mediante PR y ejecuta `up -
 El worker realiza backups diarios cifrados con clave separada y conserva siete diarios y cuatro semanales. La home muestra la última copia disponible. Para actualizar una instalación anterior, ejecuta primero `python3 scripts/init-secrets.py`: añade la clave de backup sin cambiar las existentes. Consulta [backup y restauración aislada](backups.md), conserva ambas claves fuera del equipo y verifica una copia compatible antes de cambiar el esquema.
 
 Esta entrega no es una versión auditada para producción. Las pruebas cubren controles implementados, no recolectores futuros ni tu configuración externa de Access.
+
+## Fuentes y correo tras el alta
+
+La home muestra **Mis servidores**. Añade un servidor y configura desde su pantalla las fuentes que publique: Apache Status, MRTG o GoAccess. Cada origen público se autoriza al guardar; HTTP necesita una excepción explícita. Abre **Correo de la cuenta** para definir remitente, destinatario y SMTP. Consulta las [instrucciones completas](goaccess.md).

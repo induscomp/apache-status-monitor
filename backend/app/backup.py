@@ -47,6 +47,8 @@ def clean_row(name, row, stamp):
             for key in ("workers", "details"):
                 if key in row:
                     row[key] = None
+    if name == "goaccess_reports" and observed and observed < stamp - timedelta(days=30):
+        row["panels"] = {k: v for k, v in row["panels"].items() if k not in {"hosts", "requests"}}
     if name == "incidents":
         updated = row["updated_at"]
         if isinstance(updated, str):
@@ -173,13 +175,16 @@ def prune(directory):
     import re
 
     for period, keep, pattern in [
-        ("daily", 7, r"backup-daily-\d{4}-\d{2}-\d{2}\.smon"),
-        ("weekly", 4, r"backup-weekly-\d{4}-W\d{2}\.smon"),
+        ("daily", 7, r"backup-daily-\d{4}-\d{2}-\d{2}(?:-[a-f0-9]{8})?\.smon"),
+        ("weekly", 4, r"backup-weekly-\d{4}-W\d{2}(?:-[a-f0-9]{8})?\.smon"),
     ]:
         files = sorted(
-            p
-            for p in directory.glob(f"backup-{period}-*.smon")
-            if re.fullmatch(pattern, p.name) and not p.is_symlink()
+            (
+                p
+                for p in directory.glob(f"backup-{period}-*.smon")
+                if re.fullmatch(pattern, p.name) and not p.is_symlink()
+            ),
+            key=lambda p: (p.name[: 23 if period == "daily" else 22], p.stat().st_mtime_ns),
         )
         for path in files[:-keep]:
             path.unlink()
@@ -191,7 +196,7 @@ def create_daily():
     cipher = Fernet(settings.backup_key_file.read_bytes().strip())
     directory.mkdir(mode=0o700, parents=True, exist_ok=True)
     day = now()
-    target = directory / f"backup-daily-{day:%Y-%m-%d}.smon"
+    target = directory / f"backup-daily-{day:%Y-%m-%d}-{schema_id()[:8]}.smon"
     temporary = directory / (".pending-" + secrets.token_hex(12))
     with session_factory()() as lock:
         if not lock.scalar(text("SELECT pg_try_advisory_xact_lock(829641701)")):
@@ -207,7 +212,7 @@ def create_daily():
                 for _ in records(stream, cipher):
                     pass
             # First successful backup of each ISO week, also recovering missed schedules.
-            weekly = directory / f"backup-weekly-{day:%G-W%V}.smon"
+            weekly = directory / f"backup-weekly-{day:%G-W%V}-{schema_id()[:8]}.smon"
             if not weekly.exists():
                 shutil.copyfile(target, temporary)
                 os.chmod(temporary, 0o600)
