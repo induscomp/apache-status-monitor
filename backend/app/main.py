@@ -34,6 +34,7 @@ from app.models import (
 from app.mrtg_api import router as mrtg_router
 from app.mrtg_collection import service_status as mrtg_service_status
 from app.observations import router as observations_router
+from app.password_reset import router as password_reset_router
 from app.schemas import Login, ServerInput, ServerUpdate, ServiceInput, ServiceUpdate
 from app.security import (
     DUMMY_HASH,
@@ -188,6 +189,7 @@ def create_app() -> FastAPI:
 
     api = APIRouter(prefix="/api/v1", dependencies=[Depends(access_identity)])
     api.include_router(setup_router)
+    api.include_router(password_reset_router)
     api.include_router(observations_router)
     api.include_router(mrtg_router)
     api.include_router(goaccess_router)

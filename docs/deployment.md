@@ -73,6 +73,14 @@ Producción no publica puertos. Sin configuración Access válida no arranca el 
 
 Verifica desde fuera: identidad no autorizada rechazada por Access, identidad permitida llega al login, contraseña/TOTP incorrectos rechazados y logout revoca acceso. Las pruebas de JWT no sustituyen validar la política real de Cloudflare.
 
+## Recuperar una contraseña olvidada desde la web
+
+En el login del dominio protegido, pulsa **He olvidado mi contraseña**. La recuperación exige la identidad firmada de Cloudflare Access con el mismo email del administrador y un código vigente del autenticador del monitor, o uno de sus códigos de recuperación de un solo uso. El código por email de Cloudflare pertenece a la primera capa y no sustituye el segundo factor del monitor.
+
+Introduce una contraseña nueva de al menos 14 caracteres y confírmala. Al guardar se cierra toda sesión local anterior, se registra auditoría y se conserva el autenticador, los servicios y el histórico. No se inicia sesión automáticamente: vuelve al login y, si usaste TOTP, espera al siguiente código. La misma muestra TOTP o código de recuperación no se puede reutilizar, incluso en solicitudes concurrentes.
+
+La API de recuperación comprueba el JWT y su audiencia/identidad, exige origen exacto en las mutaciones y limita los intentos por identidad y globalmente. No requiere SMTP ni usa enlaces de recuperación por email. En desarrollo local no está disponible, porque allí no hay una identidad independiente verificada por Access. Si se han perdido también el autenticador y todos los códigos, este flujo no permite recuperar la cuenta: se necesita un procedimiento del propietario de la instalación.
+
 ## Estado, contraseña y MFA
 
 ```bash

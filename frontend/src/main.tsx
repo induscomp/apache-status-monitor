@@ -25,6 +25,7 @@ import {
   X,
 } from 'lucide-react';
 import { api, ApiError } from './api';
+import { PasswordReset } from './PasswordReset';
 import { Setup } from './Setup';
 import { ApacheDiagnostics } from './ApacheDiagnostics';
 import { MrtgDiagnostics } from './MrtgDiagnostics';
@@ -100,6 +101,7 @@ function Login({
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(initialError);
+  const [recovering, setRecovering] = useState(false);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
@@ -147,77 +149,103 @@ function Login({
           <div className="square-icon">
             <LockKeyhole />
           </div>
-          <span className="eyebrow">ACCESO AL PANEL</span>
-          <h2>Bienvenido de nuevo</h2>
-          <p className="muted">Accede con tu cuenta de administrador y tu segundo factor.</p>
-          <form onSubmit={submit}>
-            <label>
-              Email
-              <input name="email" type="email" autoComplete="username" required maxLength={254} />
-            </label>
-            <label>
-              Contraseña
-              <input
-                name="password"
-                type="password"
-                autoComplete="current-password"
-                required
-                maxLength={1024}
-              />
-            </label>
-            <label>
-              Código de autenticación o recuperación
-              <input
-                name="code"
-                autoComplete="one-time-code"
-                aria-describedby="login-code-help"
-                required
-                minLength={6}
-                maxLength={64}
-                spellCheck={false}
-              />
-            </label>
-            <p id="login-code-help" className="setup-help">
-              Abre tu aplicación autenticadora y escribe los seis dígitos de la cuenta Apache Status
-              Monitor. Cambian cada 30 segundos. También puedes usar uno de los códigos de
-              recuperación guardados al crear el usuario.
-            </p>
-            {error && (
-              <p role="alert" className="error">
-                {error}
+          {recovering ? (
+            <PasswordReset
+              close={() => {
+                setRecovering(false);
+                setError('');
+              }}
+            />
+          ) : (
+            <>
+              <span className="eyebrow">ACCESO AL PANEL</span>
+              <h2>Bienvenido de nuevo</h2>
+              <p className="muted">Accede con tu cuenta de administrador y tu segundo factor.</p>
+              <form onSubmit={submit}>
+                <label>
+                  Email
+                  <input
+                    name="email"
+                    type="email"
+                    autoComplete="username"
+                    required
+                    maxLength={254}
+                  />
+                </label>
+                <label>
+                  Contraseña
+                  <input
+                    name="password"
+                    type="password"
+                    autoComplete="current-password"
+                    required
+                    maxLength={1024}
+                  />
+                </label>
+                <label>
+                  Código de autenticación o recuperación
+                  <input
+                    name="code"
+                    autoComplete="one-time-code"
+                    aria-describedby="login-code-help"
+                    required
+                    minLength={6}
+                    maxLength={64}
+                    spellCheck={false}
+                  />
+                </label>
+                <p id="login-code-help" className="setup-help">
+                  Abre tu aplicación autenticadora y escribe los seis dígitos de la cuenta Apache
+                  Status Monitor. Cambian cada 30 segundos. También puedes usar uno de los códigos
+                  de recuperación guardados al crear el usuario.
+                </p>
+                {error && (
+                  <p role="alert" className="error">
+                    {error}
+                  </p>
+                )}
+                <button className="primary wide" disabled={busy}>
+                  {busy ? 'Verificando…' : 'Entrar al panel'}
+                  <ArrowRight size={18} />
+                </button>
+              </form>
+              <button
+                type="button"
+                className="secondary wide"
+                disabled={busy}
+                onClick={() => setRecovering(true)}
+              >
+                He olvidado mi contraseña
+              </button>
+              <p className="login-note">
+                <ShieldCheck size={17} /> Sesión protegida con verificación en dos pasos.
               </p>
-            )}
-            <button className="primary wide" disabled={busy}>
-              {busy ? 'Verificando…' : 'Entrar al panel'}
-              <ArrowRight size={18} />
-            </button>
-          </form>
-          <p className="login-note">
-            <ShieldCheck size={17} /> Sesión protegida con verificación en dos pasos.
-          </p>
-          <details className="setup-help">
-            <summary>¿No tienes configurado el autenticador?</summary>
-            <p>
-              Durante el alta, la terminal muestra un código QR. En tu aplicación autenticadora,
-              pulsa añadir cuenta y escanear QR; después confirma con los seis dígitos que genera.
-            </p>
-            <p>
-              Si ya creaste el usuario pero perdiste esa cuenta, ejecuta desde la carpeta del
-              proyecto en Kakarot, con el despliegue local:
-            </p>
-            <p>
-              <code>
-                docker compose -f compose.yaml -f compose.local.yaml exec backend python -m app.cli
-                reset-mfa
-              </code>
-            </p>
-            <p>
-              Te pedirá tu contraseña actual y mostrará un nuevo QR para escanear. Puedes hacerlo
-              sin iniciar sesión en la web. Al completarlo se sustituyen los códigos de recuperación
-              y se cierran las sesiones abiertas. Guarda los nuevos códigos en tu gestor de
-              contraseñas.
-            </p>
-          </details>
+              <details className="setup-help">
+                <summary>¿No tienes configurado el autenticador?</summary>
+                <p>
+                  Durante el alta, la terminal muestra un código QR. En tu aplicación autenticadora,
+                  pulsa añadir cuenta y escanear QR; después confirma con los seis dígitos que
+                  genera.
+                </p>
+                <p>
+                  Si ya creaste el usuario pero perdiste esa cuenta, ejecuta desde la carpeta del
+                  proyecto en Kakarot, con el despliegue local:
+                </p>
+                <p>
+                  <code>
+                    docker compose -f compose.yaml -f compose.local.yaml exec backend python -m
+                    app.cli reset-mfa
+                  </code>
+                </p>
+                <p>
+                  Te pedirá tu contraseña actual y mostrará un nuevo QR para escanear. Puedes
+                  hacerlo sin iniciar sesión en la web. Al completarlo se sustituyen los códigos de
+                  recuperación y se cierran las sesiones abiertas. Guarda los nuevos códigos en tu
+                  gestor de contraseñas.
+                </p>
+              </details>
+            </>
+          )}
         </div>
       </section>
     </main>
