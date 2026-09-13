@@ -21,6 +21,7 @@ class MetricConfig(StrictModel):
     verified: bool = False
     unit: str = Field(default="", max_length=40)
     factor: float = Field(default=1, gt=0, le=1e12, allow_inf_nan=False)
+    capacity: float | None = Field(default=None, gt=0, allow_inf_nan=False)
     timezone: str | None = Field(default=None, max_length=80)
 
     @field_validator("timezone")
@@ -37,6 +38,8 @@ class MetricConfig(StrictModel):
     def require_unit(self):
         if self.verified and not self.unit:
             raise ValueError("Especifica una unidad para confirmar la interpretación")
+        if self.capacity is not None and not self.verified:
+            raise ValueError("Confirma la unidad antes de configurar la capacidad total")
         return self
 
 

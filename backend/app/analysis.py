@@ -193,6 +193,13 @@ def correlate(db, server_id, at):
                 "source_key": f"{metric.id}:{sample.source_at or sample.source_time_text or sample.id}",
                 "provenance": f"{metric.name} / {point['channel']} / {point['source']} diario",
             }
+            if (
+                role == "swap_free"
+                and "normalized_value" in point
+                and sample.configuration.get("verified")
+                and sample.configuration.get("capacity") is not None
+            ):
+                item["capacity"] = sample.configuration["capacity"]
             if role in resources:
                 warnings.append(
                     f"Varias métricas candidatas para {role}; se usa la más próxima temporalmente."

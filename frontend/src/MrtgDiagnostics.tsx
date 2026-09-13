@@ -6,6 +6,7 @@ type Configuration = {
   verified?: boolean;
   unit?: string;
   factor?: number;
+  capacity?: number | null;
   timezone?: string | null;
 };
 type Point = {
@@ -127,6 +128,7 @@ export function MrtgDiagnostics({ serviceId, csrf }: { serviceId: string; csrf: 
         verified: data.has('verified'),
         unit: data.get('unit'),
         factor: Number(data.get('factor')),
+        capacity: data.get('capacity') ? Number(data.get('capacity')) : null,
         timezone: data.get('timezone') || null,
       });
       setNotice(
@@ -224,6 +226,20 @@ export function MrtgDiagnostics({ serviceId, csrf }: { serviceId: string; csrf: 
                       maxLength={80}
                       placeholder="Zona IANA, si se conoce"
                     />
+                  </label>
+                  <label>
+                    Capacidad total de swap (opcional, en la unidad confirmada)
+                    <input
+                      name="capacity"
+                      type="number"
+                      min="0"
+                      step="any"
+                      defaultValue={metric.configuration.capacity ?? ''}
+                    />
+                    <small>
+                      Solo para swap libre. Capacidad real, no máximo observado. Si queda menos swap
+                      libre que este total, el aviso de memoria pasa a rojo.
+                    </small>
                   </label>
                   <label className="checkbox">
                     <input

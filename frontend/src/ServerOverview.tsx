@@ -45,6 +45,7 @@ type Rankings = {
 type Overview = {
   sources?: Source[];
   open_subjects?: string[];
+  priority?: string;
   has_apache?: boolean;
   backup?: { state: string; last_at: string | null };
   incident_summary?: IncidentSummary;
@@ -82,6 +83,8 @@ type Incident = {
     reference: { median: number; mad: number; samples: number };
     note: string;
     feature: string;
+    swap_state?: string;
+    severity_policy?: string;
     resources: Record<string, Resource>;
     domains?: { domain: string; active: number }[];
     coincidences: Rankings;
@@ -406,7 +409,7 @@ export function ServerOverview({
           {view === 'status' && data.incident_summary && (
             <IncidentTimeline summary={data.incident_summary} openIncidents={openIncidents} />
           )}
-          <div className={`overview-status ${data.state}`}>
+          <div className={`overview-status ${data.state} ${data.priority || ''}`}>
             <h2>{states[data.state]}</h2>
             <p>
               Última muestra: {date(data.last_at)} · {data.open_incidents} incidentes abiertos
@@ -469,6 +472,17 @@ export function ServerOverview({
                             ? 'Recuperación confirmada.'
                             : 'La última evaluación mantiene la anomalía.'}{' '}
                       Última evaluación: {date(i.progress.last_evaluated_at)}
+                    </p>
+                  )}
+                  {i.evidence.severity_policy === 'memory-swap-v1' && (
+                    <p>
+                      {i.evidence.swap_state === 'used'
+                        ? 'Rojo: hay uso de swap confirmado por su capacidad configurada.'
+                        : i.evidence.swap_state === 'unused'
+                          ? 'Naranja: aviso de memoria sin uso de swap.'
+                          : i.severity === 'critical'
+                            ? 'Se mantiene el rojo previo: faltan datos para confirmar que ha dejado de usarse swap.'
+                            : 'Naranja: no podemos confirmar uso de swap. Configura su capacidad total y unidad en la métrica MRTG de swap libre.'}
                     </p>
                   )}
                   <p>

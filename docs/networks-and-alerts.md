@@ -36,3 +36,11 @@ Las tarjetas y gráficos muestran B, kB, MB o GB decimales cuando existe una uni
 MRTG puede mostrar `2,22 G` mientras su comentario contiene `2.220.000`: presentar el comentario como `2,22 M` confundía escala interna con unidad física. Ahora se conserva el valor original para el detector y se aplica la escala de visualización por separado. No se recalibran históricos ni se generan incidentes por este cambio de formato.
 
 Las etiquetas heredadas pueden ser incorrectas. Un `B/s` no se transforma en capacidad de memoria. Si no se puede determinar una escala coherente, se indica «Unidad pendiente de confirmar» y el gráfico de memoria deja un hueco; no se adivinan GB. Lo mostrado es memoria libre según MRTG: no permite deducir RAM total, porcentaje usado ni consumo por dominio. Si el servidor publica mal la unidad de swap, debe corregirse o configurarse explícitamente esa métrica.
+
+## Naranja y rojo en los avisos de memoria
+
+RAM baja o swap libre anómala se muestran en **naranja**. Pasan a **rojo** cuando la swap libre es menor que su capacidad real configurada, en la misma unidad confirmada. Si vuelve a estar completamente libre, un aviso de RAM aún vigente vuelve a naranja. CPU, carga y dominios conservan sus reglas independientes.
+
+En Configuración → diagnóstico MRTG → métrica de swap libre → interpretación, confirma unidad y factor e introduce **Capacidad total de swap** en esa unidad (después de aplicar el factor). No uses el máximo histórico como capacidad. La capacidad se conserva con la revisión y la muestra; una configuración posterior no se aplica retroactivamente a lecturas de otra revisión.
+
+Si falta ese dato, el aviso naranja explica que el uso de swap no se puede confirmar. Un rojo previamente confirmado no baja de prioridad ni se resuelve por perder los datos de swap. El consumo confirmado puede abrir su propio aviso tras dos muestras y una referencia suficiente; se resuelve tras tres recuperadas. Los avisos cerrados anteriores conservan su prioridad histórica.

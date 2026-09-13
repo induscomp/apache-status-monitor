@@ -90,6 +90,19 @@ def dashboard(
                 "description": server.description,
                 "state": state,
                 "open_incidents": incidents,
+                "priority": "critical"
+                if db.scalar(
+                    select(Incident.id)
+                    .where(
+                        Incident.server_id == server.id,
+                        Incident.status == "open",
+                        Incident.severity == "critical",
+                    )
+                    .limit(1)
+                )
+                else "warning"
+                if incidents
+                else "none",
                 "sources": sources,
             }
         )

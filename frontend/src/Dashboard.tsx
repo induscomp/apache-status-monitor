@@ -39,6 +39,7 @@ export function SourceList({ sources, open }: { sources: Source[]; open?: (id: s
   );
 }
 type Card = {
+  priority?: string;
   id: string;
   name: string;
   description: string;
@@ -105,7 +106,10 @@ export function Dashboard({
       )}
       <div className="overview-grid">
         {data?.items.map((s) => (
-          <article className={`overview-card server-card ${s.state}`} key={s.id}>
+          <article
+            className={`overview-card server-card ${s.state} ${s.priority || ''}`}
+            key={s.id}
+          >
             <h2>{s.name}</h2>
             <p>{s.description}</p>
             <strong>{labels[s.state]}</strong>

@@ -155,7 +155,7 @@
 }
 .incident-segment.warning,
 .timeline-legend i.warning {
-  background: #ba8520;
+  background: #d97706;
 }
 .incident-segment.observed,
 .incident-segment.resolved,
@@ -287,4 +287,12 @@
 }
 .server-card.attention {
   border-left: 4px solid #ba8520;
+}
+
+.overview-status.resource_pressure.critical {
+  border-left-color: #bd4937;
+  background: #fff0ed;
+}
+.server-card.incident.warning {
+  border-left-color: #d97706;
 }

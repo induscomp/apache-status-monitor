@@ -22,6 +22,14 @@ def enqueue(db, incident, transition, at):
         db.add(EmailDelivery(incident_id=incident.id, transition=transition, created_at=at))
 
 
+def memory_severity(resources):
+    swap = resources.get("swap_free", {})
+    total, free = swap.get("capacity"), swap.get("value")
+    if total is None or free is None or not 0 <= free <= total:
+        return "warning", "unknown"
+    return ("critical", "used") if free < total else ("warning", "unused")
+
+
 def transition(db, frame, subject, kind, value, reference, bad, evidence):
     state = db.scalar(
         select(AnomalyState)
@@ -49,6 +57,22 @@ def transition(db, frame, subject, kind, value, reference, bad, evidence):
         if kind == "resources" or value >= max(1, reference["median"]) * 10
         else "warning"
     )
+    memory = kind == "resources" and subject in {"resource:ram_free", "resource:swap_free"}
+    if memory:
+        severity, swap_state = memory_severity(evidence.get("resources", {}))
+        evidence = {**evidence, "severity_policy": "memory-swap-v1", "swap_state": swap_state}
+        # Missing data cannot clear an already confirmed red condition.
+        if (
+            swap_state == "unknown"
+            and incident
+            and incident.status == "open"
+            and incident.evidence.get("severity_policy") == "memory-swap-v1"
+            and incident.severity == "critical"
+        ):
+            severity = "critical"
+            if not bad:
+                state.good = 0
+                return
     if bad and state.bad >= 2:
         if not incident or incident.status == "resolved":
             incident = Incident(
@@ -77,12 +101,14 @@ def transition(db, frame, subject, kind, value, reference, bad, evidence):
                 "feature": feature or evidence.get("feature"),
             }
             incident.updated_at = frame.observed_at
-            if severity == "critical":
-                incident.severity = "critical"
+            if memory or severity == "critical":
+                incident.severity = severity
             enqueue(
                 db,
                 incident,
-                "escalated" if incident.severity != old_severity else "reminder",
+                "escalated"
+                if incident.severity == "critical" and old_severity != "critical"
+                else "reminder",
                 frame.observed_at,
             )
     elif incident and incident.status == "open" and state.good >= 3:
@@ -203,6 +229,13 @@ def evaluate(db, frame):
                 if existing.evidence.get("basis") == point["basis"]
                 else None
             )
+        if (
+            role == "swap_free"
+            and point.get("capacity") is not None
+            and memory_severity(frame.resources)[1] == "unknown"
+        ):
+            transition(db, frame, subject, "resources", 0, None, False, {})
+            continue
         value = point["value"]
         evidence = {
             "algorithm": "median-mad-v1",
@@ -228,6 +261,10 @@ def evaluate(db, frame):
             "resources",
             value,
             reference,
-            resource_spike(value, reference, role),
+            (
+                memory_severity(frame.resources)[1] == "used"
+                if role == "swap_free" and point.get("capacity") is not None
+                else resource_spike(value, reference, role)
+            ),
             evidence,
         )

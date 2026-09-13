@@ -207,6 +207,11 @@ def server_state(
         + ["Sin muestras Apache comparables. Solo se muestran las fuentes configuradas."],
         "open_incidents": len(incidents),
         "open_subjects": [i.subject for i in incidents],
+        "priority": "critical"
+        if any(i.severity == "critical" for i in incidents)
+        else "warning"
+        if incidents
+        else "none",
         "incident_summary": summarize(db, server.id),
         "backup": backup_status(db),
         "geoip": availability(),
