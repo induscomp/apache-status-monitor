@@ -144,6 +144,9 @@ def mrtg_only_series(db, server_id, hours):
         if row.source_time_text:
             key = (row.metric_id, row.source_time_text)
             frozen[key] = min(frozen.get(key, row.observed_at), row.observed_at)
+    from app.presentation import ResourcePresentation
+
+    presentation = ResourcePresentation(db)
     buckets = {}
     role_metrics = {}
     for row in sorted(rows, key=lambda r: r.observed_at):
@@ -180,7 +183,18 @@ def mrtg_only_series(db, server_id, hours):
                     and re.search(r"[*×]\s*100\b", by_id[row.metric_id].name)
                 ):
                     value /= 100
-                item[role] = value
+                shown = presentation.point(
+                    role,
+                    {
+                        "value": value,
+                        "unit": point.get("unit", "valor de origen"),
+                        "basis": f"{row.metric_id}:{row.metric_revision}:{point['channel']}:{point['source']}",
+                        "sample_id": row.id,
+                    },
+                )
+                item[role] = (
+                    shown.get("display_bytes") if role in {"ram_free", "swap_free"} else value
+                )
     # Materialize gaps; no interpolated history or false zeros.
     if not buckets:
         return []

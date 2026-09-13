@@ -35,6 +35,7 @@ Abre **http://localhost:8187** y completa el asistente web: copia la clave del a
 React + TypeScript + Vite → Nginx → FastAPI → PostgreSQL. Un worker independiente con APScheduler recoge Apache, MRTG e informes GoAccess, correlaciona muestras, evalúa incidentes y procesa el correo configurado. Cloudflared tiene un perfil opcional dedicado.
 
 - [Fuentes por servidor, GoAccess y correo de la cuenta](docs/goaccess.md)
+- [Cómo interpretar avisos, proveedores y memoria](docs/networks-and-alerts.md)
 - [Estado del servidor, incidentes, correo y GeoIP](docs/analysis.md)
 - [Backup cifrado y recuperación](docs/backups.md)
 - [Arquitectura y seguridad](docs/architecture.md)

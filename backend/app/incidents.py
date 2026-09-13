@@ -3,6 +3,7 @@ from datetime import timedelta
 from sqlalchemy import select, update
 
 from app.analysis import baseline, domain_spike, resource_spike
+from app.evidence import domain_evidence
 from app.models import AnomalyState, EmailDelivery, Incident, ServerFrame, now
 
 
@@ -163,7 +164,7 @@ def evaluate(db, frame):
             "reference": reference,
             "frame_id": frame.id,
             "resources": frame.resources,
-            "coincidences": frame.details or {},
+            "coincidences": domain_evidence(db, frame, domain) if bad else {},
             "note": "Actividad observada; no tráfico total ni causalidad demostrada.",
         }
         transition(db, frame, subject, "domain", value, reference, bad, evidence)

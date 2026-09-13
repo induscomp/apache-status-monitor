@@ -16,6 +16,8 @@ En el panel:
 
 La correlación se calcula tras un margen de 90 segundos para que ambos recolectores terminen. El panel se actualiza cada 30 segundos; esto no aumenta la frecuencia de consulta remota. Reiniciar el worker no duplica los análisis. El bloqueo de análisis es por servicio y se comparte entre réplicas mediante PostgreSQL.
 
+Consulta también la [guía de avisos, proveedores y unidades de memoria](networks-and-alerts.md).
+
 ## Interpretación y límites
 
 - **Muchos slots libres no prueban salud.** Nunca producen una etiqueta «servidor sano». Las anomalías de memoria/carga se evalúan aunque Apache devuelva una muestra incompleta o falle.
@@ -51,7 +53,7 @@ La cola registra apertura, escalado, resolución y recordatorios con cooldown de
 
 ## GeoIP y retención
 
-Country/ASN son enriquecimiento opcional **local** de las IPs ya observadas. Coloca `GeoLite2-Country.mmdb` y `GeoLite2-ASN.mmdb` en `geoip/`, siguiendo su licencia. Docker las monta en solo lectura. Sin ellas, o sin coincidencia, aparece «Desconocido». No hay consultas a servicios externos; las consultas locales tienen caché acotada e invalidación al cambiar los archivos. Los datos GeoIP no identifican personas ni demuestran malicia.
+Country/ASN son enriquecimiento opcional **local** de las IPs ya observadas. Coloca las bases GeoLite2 Country/ASN en `geoip/`, siguiendo su licencia, o instala DB-IP Lite con el comando de la [guía de redes](networks-and-alerts.md). Docker las monta en solo lectura. Sin ellas, o sin coincidencia, aparece «Desconocido». No hay consultas a servicios externos; las consultas locales tienen caché acotada e invalidación al cambiar los archivos. Los datos GeoIP no identifican personas ni demuestran malicia.
 
 Originales cifrados: siete días. Workers/IP/rutas: treinta días, incluidos los detalles coincidentes de incidentes. Series y agregados por dominio: noventa días. La limpieza corre cada hora. El backup diario cifrado y la restauración en una base vacía están descritos en [backups](backups.md). El archivo horario anual sigue pendiente.
 

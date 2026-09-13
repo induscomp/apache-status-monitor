@@ -169,6 +169,7 @@ class Detail(HTMLParser):
                             if key in self.values:
                                 self.values[key]["display_label"] = self.row[0][:120]
                                 self.values[key]["display_unit"] = number[1][:80]
+                                self.values[key]["display_value"] = number[0]
                             self.values.setdefault(
                                 key,
                                 {

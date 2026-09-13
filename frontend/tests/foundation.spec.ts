@@ -96,6 +96,8 @@ test('administrator configures independent services, persists changes and revoke
   const overviewAt = new Date().toISOString();
   const ram = {
     value: 20,
+    display_bytes: 2.22e9,
+    display_factor: 111e6,
     unit: 'valor de origen',
     provenance: 'Memoria Física Libre / out',
     observed_at: overviewAt,
@@ -178,7 +180,19 @@ test('administrator configures independent services, persists changes and revoke
               note: 'Coincidencia temporal; no demuestra causalidad.',
               feature: 'ram_free',
               resources: { ram_free: ram },
-              coincidences: {},
+              coincidences: {
+                ips: [
+                  {
+                    ip: '192.0.2.10',
+                    count: 10,
+                    country: 'ES',
+                    asn: 64500,
+                    organization: 'Proveedor de prueba',
+                    network: '192.0.2.0/24',
+                    database_at: '2026-09-01T00:00:00Z',
+                  },
+                ],
+              },
               domains: [{ domain: 'example.test', active: 20 }],
             },
           },
@@ -187,7 +201,8 @@ test('administrator configures independent services, persists changes and revoke
     }),
   );
   await page.getByRole('button', { name: 'Estado del servidor', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Presión de recursos detectada' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Recursos fuera de lo habitual' })).toBeVisible();
+  await page.getByText('Cómo interpretar este estado', { exact: true }).click();
   await expect(page.getByText('Slots libres no prueban salud.', { exact: true })).toBeVisible();
   const timeSegment = page
     .getByRole('region', { name: 'Resumen temporal de incidencias' })
@@ -211,9 +226,13 @@ test('administrator configures independent services, persists changes and revoke
   await page.screenshot({ path: testInfo.outputPath('server-status-mobile.png'), fullPage: true });
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.getByRole('button', { name: 'Incidentes', exact: true }).click();
-  await expect(page.getByText('Coincidencia temporal; no demuestra causalidad.')).toBeVisible();
-  await page.getByText('Ver evidencias coincidentes', { exact: true }).click();
+  await expect(
+    page.getByText('Este aviso compara recursos con su histórico.', { exact: false }),
+  ).toBeVisible();
+  await page.getByText('Ver IPs, peticiones y recursos de ese momento', { exact: true }).click();
   await expect(page.getByText('example.test: 20 workers activos observados')).toBeVisible();
+  await expect(page.getByText('2,22 GB', { exact: true })).toBeVisible();
+  await expect(page.getByText('Rango de la base IP: 192.0.2.0/24', { exact: false })).toBeVisible();
   await page.getByRole('button', { name: 'Correo', exact: true }).click();
   await expect(page.getByLabel('Activar avisos por email')).not.toBeChecked();
   await page.getByRole('button', { name: 'Configuración', exact: true }).click();

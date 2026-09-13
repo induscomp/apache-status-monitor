@@ -12,7 +12,8 @@ from sqlalchemy.orm import Session
 from app.analysis import correlate
 from app.config import get_settings
 from app.db import get_db
-from app.geo import GEO_DIR
+from app.evidence import domain_evidence
+from app.geo import availability, enrich
 from app.incident_summary import summarize
 from app.models import (
     AnomalyState,
@@ -26,6 +27,7 @@ from app.models import (
     now,
 )
 from app.notifications import configuration
+from app.presentation import ResourcePresentation
 from app.schemas import StrictModel
 from app.security import authenticated, rate_limit
 from app.workspace_api import mrtg_only_series, source_summary
@@ -52,7 +54,11 @@ def incident_progress(db, incident):
         "phase": phase,
         "recovery_samples": state.good if state else 0,
         "required_recovery_samples": 3,
-        "last_evaluated_at": state.last_at if state else None,
+        "last_evaluated_at": incident.resolved_at
+        if incident.status == "resolved"
+        else state.last_at
+        if state
+        else None,
     }
 
 
@@ -130,6 +136,7 @@ def server_state(
         state = "observing"
     if chosen is None:
         state = "sources_only" if all_sources else "unconfigured"
+    presentation = ResourcePresentation(db)
     series = []
     previous = None
     previous_basis = None
@@ -156,7 +163,12 @@ def server_state(
                     if domain and frame.valid
                     else {}
                 ),
-                **{key: value["value"] for key, value in frame.resources.items()},
+                **{
+                    key: value.get("display_bytes")
+                    if key in {"ram_free", "swap_free"}
+                    else value["value"]
+                    for key, value in presentation.resources(frame.resources).items()
+                },
             }
         )
         previous = frame.observed_at
@@ -175,7 +187,7 @@ def server_state(
             "excluded_recent_minutes": 30,
         },
         "series": series if chosen else mrtg_only_series(db, server.id, hours),
-        "resources": last.resources if last else independent_resources,
+        "resources": presentation.resources(last.resources if last else independent_resources),
         "metrics": last.metrics if last else {},
         "period_rankings": [
             {"domain": d, "appearances": n}
@@ -186,7 +198,7 @@ def server_state(
             key=lambda v: v["active"],
             reverse=True,
         )[:100],
-        "rankings": last.details or {}
+        "rankings": enrich(last.details or {})
         if last and last.observed_at >= now() - timedelta(days=30)
         else {},
         "warnings": last.warnings
@@ -194,12 +206,10 @@ def server_state(
         else independent_warnings
         + ["Sin muestras Apache comparables. Solo se muestran las fuentes configuradas."],
         "open_incidents": len(incidents),
+        "open_subjects": [i.subject for i in incidents],
         "incident_summary": summarize(db, server.id),
         "backup": backup_status(db),
-        "geoip": {
-            "country": (GEO_DIR / "GeoLite2-Country.mmdb").is_file(),
-            "asn": (GEO_DIR / "GeoLite2-ASN.mmdb").is_file(),
-        },
+        "geoip": availability(),
         "limitation": "Slots libres no prueban salud. Apache Status y MRTG no confirman errores HTTP 500 ni visitas totales por dominio. GoAccess refleja únicamente el periodo y la fecha de su informe.",
     }
 
@@ -219,6 +229,7 @@ def incident_list(
         .offset(offset)
         .limit(limit)
     ).all()
+    presentation = ResourcePresentation(db)
     return {
         "items": [
             {
@@ -234,7 +245,20 @@ def incident_list(
                 "progress": incident_progress(db, i),
                 "evidence": {
                     **i.evidence,
-                    "coincidences": i.evidence.get("coincidences", {})
+                    "resources": presentation.resources(i.evidence.get("resources", {})),
+                    "coincidences": enrich(
+                        domain_evidence(
+                            db,
+                            db.get(ServerFrame, i.evidence.get("frame_id")),
+                            i.subject.removeprefix("domain:"),
+                        )
+                        if i.kind == "domain" and i.evidence.get("frame_id")
+                        else (
+                            i.evidence.get("coincidences", {})
+                            if i.kind != "domain"
+                            else {"scope": "unavailable"}
+                        )
+                    )
                     if i.updated_at >= now() - timedelta(days=30)
                     else {},
                 },

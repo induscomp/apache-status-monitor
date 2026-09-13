@@ -10,6 +10,7 @@ import {
   Legend,
 } from 'recharts';
 import { api } from './api';
+import { memory, numeric, subjectText, incidentExplanation } from './incidentText';
 import './overview.css';
 import { IncidentTimeline } from './IncidentTimeline';
 import type { IncidentSummary } from './IncidentTimeline';
@@ -18,24 +19,32 @@ import type { Source } from './Dashboard';
 
 type Resource = {
   value: number;
+  display_bytes?: number;
+  display_factor?: number;
+  display_note?: string;
   unit: string;
   provenance: string;
   observed_at: string;
   source_at: string | null;
 };
 type Rankings = {
+  scope?: string;
   ips?: {
     ip: string;
     count: number;
     country: string | null;
     asn: number | null;
     organization: string | null;
+    network?: string | null;
+    database_at?: string | null;
+    source?: string;
   }[];
   urls?: { domain: string; method: string; path: string; count: number }[];
   posts?: { domain: string; ip: string; path: string; count: number }[];
 };
 type Overview = {
   sources?: Source[];
+  open_subjects?: string[];
   has_apache?: boolean;
   backup?: { state: string; last_at: string | null };
   incident_summary?: IncidentSummary;
@@ -92,17 +101,11 @@ const states: Record<string, string> = {
   unconfigured: 'Configura las fuentes de este servidor',
   learning: 'Aprendiendo el comportamiento habitual',
   insufficient: 'Datos insuficientes o incompletos',
-  resource_pressure: 'Presión de recursos detectada',
+  resource_pressure: 'Recursos fuera de lo habitual',
   anomaly: 'Actividad inusual detectada',
   observing: 'Sin anomalías detectadas en las muestras',
 };
-const number = (value: number | null | undefined) =>
-  value == null
-    ? 'Sin dato'
-    : new Intl.NumberFormat('es', {
-        maximumFractionDigits: 2,
-        notation: Math.abs(value) >= 1e6 ? 'compact' : 'standard',
-      }).format(value);
+const number = numeric;
 const date = (value: string | null) =>
   value ? new Date(value).toLocaleString('es') : 'Sin recogidas';
 
@@ -110,10 +113,12 @@ function Chart({
   title,
   data,
   lines,
+  bytes = false,
 }: {
   title: string;
   data: Overview['series'];
   lines: [string, string][];
+  bytes?: boolean;
 }) {
   return (
     <section className="overview-card">
@@ -130,8 +135,11 @@ function Chart({
                   new Date(v).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })
                 }
               />
-              <YAxis width={65} tickFormatter={number} />
-              <Tooltip labelFormatter={(v) => date(String(v))} />
+              <YAxis width={65} tickFormatter={bytes ? memory : number} />
+              <Tooltip
+                labelFormatter={(v) => date(String(v))}
+                formatter={(value) => (bytes ? memory(Number(value)) : number(Number(value)))}
+              />
               <Legend />
               {lines.map(([key, label], index) => (
                 <Line
@@ -159,12 +167,23 @@ function ResourceCards({ values }: { values: Record<string, Resource> }) {
       {Object.entries(labels).map(([key, label]) => (
         <div className="overview-card" key={key}>
           <h3>{label}</h3>
-          <strong className="metric-number">{number(values[key]?.value)}</strong>
-          <p>{values[key]?.unit || 'Sin lectura correlacionable'}</p>
+          <strong className="metric-number">
+            {values[key]?.display_bytes != null
+              ? memory(values[key].display_bytes!)
+              : number(values[key]?.value)}
+          </strong>
+          <p>
+            {values[key]?.display_bytes != null
+              ? 'Memoria disponible según MRTG'
+              : values[key]?.unit === 'valor de origen'
+                ? 'Unidad pendiente de confirmar'
+                : values[key]?.unit || 'Sin lectura correlacionable'}
+          </p>
           {values[key] && (
             <details>
               <summary>Fuente y fecha</summary>
               <p>{values[key].provenance}</p>
+              <p>{values[key].display_note}</p>
               <p>Recogida: {date(values[key].observed_at)}</p>
               <p>
                 Fuente:{' '}
@@ -178,8 +197,52 @@ function ResourceCards({ values }: { values: Record<string, Resource> }) {
   );
 }
 function Evidence({ rankings }: { rankings: Rankings }) {
+  const providers = new Map<string, { name: string; count: number; ips: number }>();
+  for (const row of rankings.ips || []) {
+    const key = row.asn ? `AS${row.asn}` : 'unknown';
+    const provider = providers.get(key) || {
+      name: row.asn
+        ? `${row.organization || 'Organización desconocida'} · AS${row.asn}`
+        : 'Proveedor sin identificar',
+      count: 0,
+      ips: 0,
+    };
+    provider.count += row.count;
+    provider.ips += 1;
+    providers.set(key, provider);
+  }
   return (
     <div className="overview-grid">
+      <section className="overview-card">
+        <h3>Redes y proveedores observados</h3>
+        <p>
+          {rankings.scope === 'domain'
+            ? 'Solo IPs con conexiones activas al dominio de este aviso.'
+            : rankings.scope === 'unavailable'
+              ? 'No se conserva una muestra que permita atribuir IPs a este dominio. No mostramos IPs de otros dominios como si fueran suyas.'
+              : 'Conexiones activas del conjunto del servidor en esta muestra.'}
+        </p>
+        {[...providers.values()]
+          .sort((a, b) => b.count - a.count)
+          .map((p) => (
+            <p key={p.name}>
+              <strong>{p.name}</strong>: {p.count} conexiones observadas desde {p.ips} IPs.
+            </p>
+          ))}
+        {!providers.size && <p>Sin IPs activas atribuibles en esta evidencia.</p>}
+        <p>
+          Resumen de las IPs mostradas (máximo 30). El ASN identifica la red: puede pertenecer a un
+          cloud, operador o empresa. No identifica a una persona ni demuestra un ataque.
+        </p>
+        <p>
+          Consulta local, sin enviar IPs de visitantes.{' '}
+          <a href="https://db-ip.com" target="_blank" rel="noreferrer">
+            IP Geolocation by DB-IP
+          </a>{' '}
+          (Lite, CC BY 4.0); GeoLite2 cuando está disponible. La clasificación corresponde a la base
+          actual, no necesariamente al propietario histórico.
+        </p>
+      </section>
       <section className="overview-card">
         <h3>IPs con más conexiones observadas</h3>
         <div className="overview-table">
@@ -188,7 +251,7 @@ function Evidence({ rankings }: { rankings: Rankings }) {
               <tr>
                 <th>IP</th>
                 <th>Workers activos</th>
-                <th>País / ASN</th>
+                <th>País / proveedor / rango</th>
               </tr>
             </thead>
             <tbody>
@@ -197,8 +260,17 @@ function Evidence({ rankings }: { rankings: Rankings }) {
                   <td>{r.ip}</td>
                   <td>{r.count}</td>
                   <td>
-                    {r.country || 'Desconocido'} /{' '}
-                    {r.asn ? `AS${r.asn} ${r.organization || ''}` : 'Desconocido'}
+                    {r.country
+                      ? new Intl.DisplayNames(['es'], { type: 'region' }).of(r.country) || r.country
+                      : 'País desconocido'}
+                    <br />
+                    {r.asn
+                      ? `AS${r.asn} · ${r.organization || 'Organización desconocida'}`
+                      : 'Proveedor desconocido'}
+                    <div>
+                      {r.network ? `Rango de la base IP: ${r.network}` : 'Rango no disponible'}
+                    </div>
+                    {r.database_at && <small>Base actualizada: {date(r.database_at)}</small>}
                   </td>
                 </tr>
               ))}
@@ -339,36 +411,53 @@ export function ServerOverview({
             <p>
               Última muestra: {date(data.last_at)} · {data.open_incidents} incidentes abiertos
             </p>
-            <p>{data.limitation}</p>
-            {data.has_apache !== false && (
-              <p>
-                Referencia del dominio: {data.learning.valid_baseline_samples}/
-                {data.learning.required_samples} muestras válidas mínimas en 24 h; se excluyen los
-                últimos 30 minutos.
-              </p>
-            )}
+            <p>
+              {data.open_subjects?.length
+                ? `Revisar ahora: ${data.open_subjects.map(subjectText).join(' · ')}.`
+                : 'Los avisos resueltos se conservan como histórico.'}{' '}
+              Un aviso de recursos puede seguir abierto aunque un aviso de dominio ya se haya
+              resuelto.
+            </p>
+            <details>
+              <summary>Cómo interpretar este estado</summary>
+              <p>{data.limitation}</p>
+              {data.has_apache !== false && (
+                <p>
+                  Muestras disponibles para aprender el comportamiento:{' '}
+                  {data.learning.valid_baseline_samples}. Mínimo requerido:
+                  {data.learning.required_samples} muestras válidas mínimas en 24 h; se excluyen los
+                  últimos 30 minutos.
+                </p>
+              )}
+            </details>
           </div>
           {view === 'incidents' ? (
             <>
               <h2>Incidentes</h2>
               <p>
-                Coincidencias entre Apache y MRTG. La ausencia de datos no resuelve un incidente.
+                Estos avisos señalan cambios que conviene revisar. La prioridad no mide la
+                probabilidad de un ataque. Los avisos resueltos describen hechos pasados.
               </p>
               {!incidents.length && <p>No hay incidentes en esta página.</p>}
               {incidents.map((i) => (
                 <article className="overview-card" key={i.id}>
                   <h3>
-                    {i.subject.replace('domain:', 'Dominio: ').replace('resource:', 'Recurso: ')} ·{' '}
-                    {i.status === 'open' ? 'Abierto' : 'Resuelto'} ·{' '}
-                    {i.severity === 'critical' ? 'Prioridad alta' : 'Prioridad media'}
+                    {subjectText(i.subject)} · {i.status === 'open' ? 'Abierto' : 'Resuelto'} ·{' '}
+                    {i.severity === 'critical'
+                      ? 'Prioridad de revisión alta'
+                      : 'Prioridad de revisión media'}
                   </h3>
                   <p>
                     Inicio: {date(i.opened_at)} · Actualizado: {date(i.updated_at)}
                   </p>
                   <p>
-                    {i.evidence.feature}: {number(i.evidence.value)}; mediana habitual{' '}
-                    {number(i.evidence.reference?.median)} ({i.evidence.reference?.samples}{' '}
-                    muestras).
+                    {incidentExplanation(
+                      i.subject,
+                      i.evidence.feature,
+                      i.evidence.value,
+                      i.evidence.reference?.median,
+                      i.evidence.resources?.[i.evidence.feature]?.display_factor,
+                    )}
                   </p>
                   {i.progress && (
                     <p>
@@ -382,9 +471,26 @@ export function ServerOverview({
                       Última evaluación: {date(i.progress.last_evaluated_at)}
                     </p>
                   )}
-                  <p>{i.evidence.note}</p>
+                  <p>
+                    {i.subject.startsWith('domain:')
+                      ? 'Se detectó actividad inusual, no un ataque confirmado. Puede corresponder a visitas, rastreadores o automatización. Revisa las IPs y las peticiones del dominio antes de atribuir una causa.'
+                      : 'Este aviso compara recursos con su histórico. No confirma que se haya agotado la memoria ni que un dominio sea responsable.'}
+                  </p>
+                  <p>
+                    {i.status === 'resolved'
+                      ? 'La actividad volvió a su referencia durante tres muestras válidas. El aviso se conserva como histórico.'
+                      : 'Qué revisar: si el cambio persiste, qué dominios e IPs coinciden y si aumentan los POST a rutas sensibles.'}
+                  </p>
                   <details>
-                    <summary>Ver evidencias coincidentes</summary>
+                    <summary>Ver IPs, peticiones y recursos de ese momento</summary>
+                    <p>
+                      Lectura que activó o actualizó el aviso; no es la suma de toda su duración.
+                      Recursos compartidos por todo el servidor.
+                    </p>
+                    <p>
+                      Referencia calculada con {i.evidence.reference?.samples} muestras anteriores.
+                      Mediana/MAD, excluyendo los últimos 30 minutos.
+                    </p>
                     <ResourceCards values={i.evidence.resources || {}} />
                     {i.evidence.domains?.map((d) => (
                       <p key={d.domain}>
@@ -466,7 +572,8 @@ export function ServerOverview({
                     .map((key) => (
                       <Chart
                         key={key}
-                        title={`${labels[key]} · ${data.resources[key]?.unit || 'unidad de origen'}`}
+                        title={`${labels[key]} · ${data.resources[key]?.display_bytes != null ? 'memoria disponible' : data.resources[key]?.unit || 'unidad de origen'}`}
+                        bytes={data.resources[key]?.display_bytes != null}
                         data={data.series}
                         lines={[[key, labels[key]]]}
                       />
@@ -503,7 +610,8 @@ export function ServerOverview({
                     {['ram_free', 'swap_free', 'load'].map((key) => (
                       <Chart
                         key={key}
-                        title={`${labels[key]} · ${data.resources[key]?.unit || 'unidad de origen'}`}
+                        title={`${labels[key]} · ${data.resources[key]?.display_bytes != null ? 'memoria disponible' : data.resources[key]?.unit || 'unidad de origen'}`}
+                        bytes={data.resources[key]?.display_bytes != null}
                         data={data.series}
                         lines={[[key, labels[key]]]}
                       />
@@ -544,7 +652,8 @@ export function ServerOverview({
                         {['cpu', 'processes', 'tcp_connections', 'http_processes'].map((key) => (
                           <Chart
                             key={key}
-                            title={`${labels[key]} · ${data.resources[key]?.unit || 'unidad de origen'}`}
+                            title={`${labels[key]} · ${data.resources[key]?.display_bytes != null ? 'memoria disponible' : data.resources[key]?.unit || 'unidad de origen'}`}
+                            bytes={data.resources[key]?.display_bytes != null}
                             data={data.series}
                             lines={[[key, labels[key]]]}
                           />
@@ -614,8 +723,8 @@ export function ServerOverview({
                   )}
                   {(!data.geoip.country || !data.geoip.asn) && (
                     <p>
-                      GeoIP local incompleto: instala las bases Country y ASN en la carpeta geoip
-                      para enriquecer las IPs. No se realizan consultas externas.
+                      Faltan bases locales de país o proveedor. Consulta la guía de redes para
+                      instalar DB-IP Lite o GeoLite2. No se realizan consultas externas con las IPs.
                     </p>
                   )}
                   <Evidence rankings={data.rankings} />

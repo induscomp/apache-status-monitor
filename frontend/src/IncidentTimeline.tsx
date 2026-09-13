@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { subjectText } from './incidentText';
 
 export type IncidentSummary = {
   start: string;
@@ -61,6 +62,10 @@ export function IncidentTimeline({
           Ver incidentes
         </button>
       </div>
+      <p>
+        Un mismo aviso abierto ocupa varios tramos. La franja roja no significa ataques continuos ni
+        nuevos ataques en cada tramo.
+      </p>
       <div
         className="incident-timeline"
         onMouseLeave={() => setSelected(null)}
@@ -104,8 +109,10 @@ export function IncidentTimeline({
             </p>
             {detail.details.map((d, i) => (
               <p key={i}>
-                {d.subject.replace('domain:', 'Dominio: ').replace('resource:', 'Recurso: ')} ·{' '}
-                {d.service}
+                {subjectText(d.subject)} ·{' '}
+                {d.subject.startsWith('resource:')
+                  ? `MRTG, correlacionado con ${d.service}`
+                  : d.service}
                 <br />
                 Inicio: {format(d.opened_at)}
                 {d.resolved_at ? ` · Resolución: ${format(d.resolved_at)}` : ' · Sigue abierto'}
