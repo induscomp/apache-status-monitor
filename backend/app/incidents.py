@@ -4,7 +4,7 @@ from sqlalchemy import select, update
 
 from app.analysis import baseline, domain_spike, resource_spike
 from app.evidence import domain_evidence
-from app.models import AnomalyState, EmailDelivery, Incident, ServerFrame, now
+from app.models import AnomalyState, EmailDelivery, Incident, Server, ServerFrame, now
 
 
 def enqueue(db, incident, transition, at):
@@ -73,7 +73,8 @@ def transition(db, frame, subject, kind, value, reference, bad, evidence):
             if not bad:
                 state.good = 0
                 return
-    if bad and state.bad >= 2:
+    settings = evidence.get("alert_settings", {})
+    if bad and state.bad >= settings.get("open_samples", 2):
         if not incident or incident.status == "resolved":
             incident = Incident(
                 server_id=frame.server_id,
@@ -111,7 +112,9 @@ def transition(db, frame, subject, kind, value, reference, bad, evidence):
                 else "reminder",
                 frame.observed_at,
             )
-    elif incident and incident.status == "open" and state.good >= 3:
+    elif (
+        incident and incident.status == "open" and state.good >= settings.get("recovery_samples", 3)
+    ):
         incident.status = "resolved"
         incident.resolved_at = frame.observed_at
         incident.updated_at = frame.observed_at
@@ -119,6 +122,11 @@ def transition(db, frame, subject, kind, value, reference, bad, evidence):
 
 
 def evaluate(db, frame):
+    from app.alert_settings import settings_for
+
+    server = db.scalar(select(Server).where(Server.id == frame.server_id).with_for_update())
+    settings = settings_for(server)
+    policy_revision = (server.alert_settings or {}).get("revision", 0)
     if not frame.valid:
         db.execute(
             update(AnomalyState)
@@ -168,7 +176,7 @@ def evaluate(db, frame):
                 and existing.evidence.get("revision") == frame.revision
             ):
                 reference = existing.evidence["reference"]
-            candidates.append((domain_spike(value, reference), feature, value, reference))
+            candidates.append((domain_spike(value, reference, settings), feature, value, reference))
         bad, feature, value, reference = max(
             candidates,
             key=lambda item: (item[0], item[2] / max(1, (item[3] or {}).get("median", 1))),
@@ -181,9 +189,11 @@ def evaluate(db, frame):
                 if existing.evidence.get("revision") == frame.revision
                 else None
             )
-            bad = domain_spike(value, reference)
+            bad = domain_spike(value, reference, settings)
         evidence = {
             "algorithm": "median-mad-v1",
+            "alert_settings": settings,
+            "alert_settings_revision": policy_revision,
             "revision": frame.revision,
             "feature": feature,
             "value": value,
@@ -239,6 +249,8 @@ def evaluate(db, frame):
         value = point["value"]
         evidence = {
             "algorithm": "median-mad-v1",
+            "alert_settings": settings,
+            "alert_settings_revision": policy_revision,
             "revision": frame.revision,
             "feature": role,
             "value": value,
@@ -264,7 +276,7 @@ def evaluate(db, frame):
             (
                 memory_severity(frame.resources)[1] == "used"
                 if role == "swap_free" and point.get("capacity") is not None
-                else resource_spike(value, reference, role)
+                else resource_spike(value, reference, role, settings)
             ),
             evidence,
         )

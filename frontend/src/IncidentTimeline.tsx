@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { subjectText } from './incidentText';
 
 export type IncidentSummary = {
@@ -8,6 +8,16 @@ export type IncidentSummary = {
   open: number;
   critical: number;
   resolved: number;
+  rows?: {
+    id: string;
+    name: string;
+    kind: string;
+    status: string;
+    state: string;
+    partial: boolean;
+    history_note: string | null;
+    bins: IncidentSummary['bins'];
+  }[];
   bins: {
     start: string;
     end: string;
@@ -27,7 +37,7 @@ export type IncidentSummary = {
 };
 const labels: Record<string, string> = {
   critical: 'Incidencia de prioridad alta',
-  warning: 'Incidencia de prioridad media',
+  warning: 'Aviso: incidencia o lectura incompleta',
   resolved: 'Incidencia resuelta',
   observed: 'Sin incidencias registradas',
   unknown: 'Cobertura insuficiente',
@@ -46,8 +56,7 @@ export function IncidentTimeline({
   summary: IncidentSummary;
   openIncidents: () => void;
 }) {
-  const [selected, setSelected] = useState<number | null>(null);
-  const detail = selected === null ? null : summary.bins[selected];
+  const [selection, setSelection] = useState<{ row: string; index: number } | null>(null);
   return (
     <section className="incident-summary" aria-label="Resumen temporal de incidencias">
       <div className="incident-summary-heading">
@@ -63,67 +72,45 @@ export function IncidentTimeline({
         </button>
       </div>
       <p>
-        Un mismo aviso abierto ocupa varios tramos. La franja roja no significa ataques continuos ni
-        nuevos ataques en cada tramo.
+        Una fila por servicio. Verde: lecturas completas sin avisos detectados. Los huecos no
+        indican que todo esté bien. Un aviso puede ocupar varios tramos.
       </p>
-      <div
-        className="incident-timeline"
-        onMouseLeave={() => setSelected(null)}
-        onKeyDown={(e) => {
-          if (e.key === 'Escape') {
-            setSelected(null);
-            (e.target as HTMLElement).blur();
-          }
-        }}
-      >
-        <div className="incident-segments">
-          {summary.bins.map((bin, i) => (
-            <button
-              key={bin.start}
-              className={`incident-segment ${bin.state}`}
-              aria-label={`${format(bin.start)}–${format(bin.end)}: ${labels[bin.state]}, ${bin.incidents} incidencias, ${bin.samples} muestras`}
-              aria-describedby={selected === i ? 'incident-time-detail' : undefined}
-              onMouseEnter={() => setSelected(i)}
-              onFocus={() => setSelected(i)}
-              onBlur={() => setSelected(null)}
-              onClick={() => setSelected(i)}
-            />
-          ))}
-        </div>
-        {detail && (
-          <div className="incident-time-detail" role="tooltip" id="incident-time-detail">
-            <strong>
-              {format(detail.start)} — {format(detail.end)}
-            </strong>
-            <p>
-              {labels[detail.state]} · {detail.incidents} incidencias · {detail.resolved} resueltas
-              en el tramo.
-            </p>
-            <p>
-              {detail.samples} muestras.{' '}
-              {detail.coverage === 'complete'
-                ? 'Cobertura de Apache y MRTG disponible.'
-                : detail.coverage === 'partial'
-                  ? 'Cobertura parcial: faltan lecturas comparables.'
-                  : 'Sin muestras: no permite evaluar el estado.'}
-            </p>
-            {detail.details.map((d, i) => (
-              <p key={i}>
-                {subjectText(d.subject)} ·{' '}
-                {d.subject.startsWith('resource:')
-                  ? `MRTG, correlacionado con ${d.service}`
-                  : d.service}
-                <br />
-                Inicio: {format(d.opened_at)}
-                {d.resolved_at ? ` · Resolución: ${format(d.resolved_at)}` : ' · Sigue abierto'}
-              </p>
-            ))}
-            {detail.incidents > detail.details.length && (
-              <p>Consulta Incidentes para ver todos los detalles.</p>
+      {(
+        summary.rows ?? [
+          {
+            id: 'legacy',
+            name: 'Servicios del servidor',
+            kind: '',
+            status: '',
+            state: '',
+            partial: false,
+            history_note: null,
+            bins: summary.bins,
+          },
+        ]
+      ).map((row) => (
+        <div className="service-timeline-row" key={row.id}>
+          <div className="service-timeline-heading">
+            <strong>{row.name}</strong>
+            {row.status && (
+              <span className={`service-timeline-status ${row.state}`}>
+                {row.state === 'critical'
+                  ? 'Alerta alta'
+                  : row.state === 'warning' && row.status === 'ok'
+                    ? 'Aviso abierto'
+                    : (statusLabels[row.status] ?? 'Sin evaluar')}
+              </span>
             )}
           </div>
-        )}
-      </div>
+          <TimelineBins
+            bins={row.bins}
+            selected={selection?.row === row.id ? selection.index : null}
+            setSelected={(index) => setSelection(index === null ? null : { row: row.id, index })}
+          />
+          {row.history_note && <small>{row.history_note}</small>}
+          {row.partial && <small>Histórico parcial por límite de lecturas.</small>}
+        </div>
+      ))}
       <div className="timeline-scale">
         <span>{format(summary.start)}</span>
         <span>Ahora</span>
@@ -151,5 +138,85 @@ export function IncidentTimeline({
         <p>Resumen parcial por límite de registros. Consulta el listado de incidentes.</p>
       )}
     </section>
+  );
+}
+
+const statusLabels: Record<string, string> = {
+  ok: 'OK · sin avisos',
+  partial: 'Datos parciales',
+  error: 'Error de lectura',
+  stale: 'Desactualizado',
+  waiting: 'Esperando datos',
+  paused: 'En pausa',
+  archived: 'Archivado',
+};
+function TimelineBins({
+  bins,
+  selected,
+  setSelected,
+}: {
+  bins: IncidentSummary['bins'];
+  selected: number | null;
+  setSelected: (value: number | null) => void;
+}) {
+  const tooltipId = useId();
+  const detail = selected === null ? null : bins[selected];
+  return (
+    <div
+      className="incident-timeline"
+      onMouseLeave={() => setSelected(null)}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') {
+          setSelected(null);
+          (e.target as HTMLElement).blur();
+        }
+      }}
+    >
+      <div className="incident-segments">
+        {bins.map((bin, i) => (
+          <button
+            key={bin.start}
+            className={`incident-segment ${bin.state}`}
+            aria-label={`${format(bin.start)}–${format(bin.end)}: ${labels[bin.state]}, ${bin.incidents} incidencias, ${bin.samples} muestras`}
+            aria-describedby={selected === i ? tooltipId : undefined}
+            onMouseEnter={() => setSelected(i)}
+            onFocus={() => setSelected(i)}
+            onBlur={() => setSelected(null)}
+            onClick={() => setSelected(i)}
+          />
+        ))}
+      </div>
+      {detail && (
+        <div className="incident-time-detail" role="tooltip" id={tooltipId}>
+          <strong>
+            {format(detail.start)} — {format(detail.end)}
+          </strong>
+          <p>
+            {labels[detail.state]} · {detail.incidents} incidencias · {detail.resolved} resueltas en
+            el tramo.
+          </p>
+          <p>
+            {detail.samples} muestras.{' '}
+            {detail.coverage === 'complete'
+              ? 'Lecturas recientes y completas de este servicio.'
+              : detail.coverage === 'partial'
+                ? 'Cobertura parcial: faltan lecturas comparables.'
+                : 'Sin muestras: no permite evaluar el estado.'}
+          </p>
+          {detail.details.map((d, i) => (
+            <p key={i}>
+              {subjectText(d.subject)} ·{' '}
+              {d.subject.startsWith('resource:') ? `${d.service}` : d.service}
+              <br />
+              Inicio: {format(d.opened_at)}
+              {d.resolved_at ? ` · Resolución: ${format(d.resolved_at)}` : ' · Sigue abierto'}
+            </p>
+          ))}
+          {detail.incidents > detail.details.length && (
+            <p>Consulta Incidentes para ver todos los detalles.</p>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

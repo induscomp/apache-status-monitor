@@ -296,3 +296,64 @@
 .server-card.incident.warning {
   border-left-color: #d97706;
 }
+
+.service-timeline-row {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border, #dae4df);
+}
+.service-timeline-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.service-timeline-status {
+  font-size: 0.8rem;
+  border-radius: 5px;
+  padding: 3px 8px;
+  background: #edf0ee;
+  color: #52615b;
+}
+.service-timeline-status.observed {
+  background: #e4f3e8;
+  color: #24633b;
+}
+.service-timeline-status.warning {
+  background: #fff0da;
+  color: #97510a;
+}
+.service-timeline-status.critical {
+  background: #fbe4df;
+  color: #a12f20;
+}
+.service-timeline-row .incident-segment {
+  min-height: 24px;
+}
+.alert-settings-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  border: 0;
+  padding: 0;
+  margin: 20px 0;
+}
+.alert-settings-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.alert-settings-fields small {
+  font-weight: normal;
+}
+@media (max-width: 700px) {
+  .service-timeline-row .incident-segments {
+    grid-template-columns: repeat(24, minmax(0, 1fr));
+  }
+  .alert-settings-fields {
+    grid-template-columns: 1fr;
+  }
+  .service-timeline-heading {
+    flex-wrap: wrap;
+  }
+}

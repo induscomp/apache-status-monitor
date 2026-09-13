@@ -14,7 +14,7 @@ from app.connectors.goaccess import parse_report
 from app.connectors.policy import service_transport_options
 from app.connectors.transport import fetch
 from app.db import get_db, session_factory
-from app.models import GoAccessReport, GoAccessState, Server, Service, now
+from app.models import GoAccessReport, GoAccessState, Server, Service, ServiceCheck, now
 from app.security import authenticated
 
 router = APIRouter()
@@ -97,6 +97,11 @@ def collect_service(key):
             state.warnings = [
                 "No se pudo leer el informe GoAccess. Revisa URL, DNS, TLS, permisos y tamaño (máximo 2 MiB)."
             ]
+        db.add(
+            ServiceCheck(
+                service_id=key, revision=service.revision, observed_at=stamp, status=state.status
+            )
+        )
         db.commit()
 
 
@@ -186,6 +191,9 @@ def detail(service_id: UUID, auth=Depends(authenticated), db: Session = Depends(
 
 def retention():
     with session_factory()() as db:
+        db.execute(
+            delete(ServiceCheck).where(ServiceCheck.observed_at < now() - timedelta(days=90))
+        )
         for report in db.scalars(
             select(GoAccessReport).where(GoAccessReport.observed_at < now() - timedelta(days=30))
         ):

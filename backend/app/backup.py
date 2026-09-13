@@ -40,7 +40,12 @@ def clean_row(name, row, stamp):
     observed = row.get("observed_at")
     if isinstance(observed, str):
         observed = datetime.fromisoformat(observed)
-    if observed and name in {"apache_observations", "mrtg_observations", "server_frames"}:
+    if observed and name in {
+        "apache_observations",
+        "mrtg_observations",
+        "server_frames",
+        "service_checks",
+    }:
         if observed < stamp - timedelta(days=90):
             return None
         if observed < stamp - timedelta(days=30):

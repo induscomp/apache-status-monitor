@@ -6,9 +6,10 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import Field, SecretStr, model_validator
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
+from app.alert_settings import AlertSettings, settings_for
 from app.analysis import correlate
 from app.config import get_settings
 from app.db import get_db
@@ -17,6 +18,7 @@ from app.geo import availability, enrich
 from app.incident_summary import summarize
 from app.models import (
     AnomalyState,
+    AuditEvent,
     ComponentHeartbeat,
     EmailDelivery,
     Incident,
@@ -33,6 +35,44 @@ from app.security import authenticated, rate_limit
 from app.workspace_api import mrtg_only_series, source_summary
 
 router = APIRouter()
+
+
+@router.get("/servers/{server_id}/alert-settings")
+def get_alert_settings(server_id: UUID, auth=Depends(authenticated), db: Session = Depends(get_db)):
+    server = db.get(Server, str(server_id))
+    if not server:
+        raise HTTPException(404, "Servidor no encontrado.")
+    return settings_for(server)
+
+
+@router.put("/servers/{server_id}/alert-settings")
+def save_alert_settings(
+    server_id: UUID,
+    payload: AlertSettings,
+    auth=Depends(authenticated),
+    db: Session = Depends(get_db),
+):
+    server = db.scalar(select(Server).where(Server.id == str(server_id)).with_for_update())
+    if not server:
+        raise HTTPException(404, "Servidor no encontrado.")
+    values = payload.model_dump()
+    if values != settings_for(server):
+        revision = (server.alert_settings or {}).get("revision", 0) + 1
+        server.alert_settings = {**values, "revision": revision}
+        db.execute(
+            update(AnomalyState)
+            .where(
+                AnomalyState.service_id.in_(
+                    select(Service.id).where(Service.server_id == server.id)
+                )
+            )
+            .values(bad=0, good=0)
+        )
+        db.add(
+            AuditEvent(action="server.alert_settings.update", target_id=f"{server.id}:{revision}")
+        )
+        db.commit()
+    return values
 
 
 def backup_status(db):
@@ -53,7 +93,9 @@ def incident_progress(db, incident):
     return {
         "phase": phase,
         "recovery_samples": state.good if state else 0,
-        "required_recovery_samples": 3,
+        "required_recovery_samples": settings_for(db.get(Server, incident.server_id))[
+            "recovery_samples"
+        ],
         "last_evaluated_at": incident.resolved_at
         if incident.status == "resolved"
         else state.last_at

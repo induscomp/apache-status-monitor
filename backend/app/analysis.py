@@ -235,20 +235,34 @@ def baseline(values, minimum=170):
     return {"median": center, "mad": mad, "samples": len(values)}
 
 
-def domain_spike(value, reference):
+def domain_spike(value, reference, settings=None):
+    from app.alert_settings import AlertSettings
+
+    settings = settings or AlertSettings().model_dump()
     if reference is None:
         return False
     center, mad = reference["median"], reference["mad"]
-    return value >= max(1, center) * 3 and value - center >= max(5, 6 * max(1, 1.4826 * mad))
+    return value >= max(1, center) * settings["domain_multiplier"] and value - center >= max(
+        settings["domain_min_increase"], 6 * max(1, 1.4826 * mad)
+    )
 
 
-def resource_spike(value, reference, role):
+def resource_spike(value, reference, role, settings=None):
+    from app.alert_settings import AlertSettings
+
+    settings = settings or AlertSettings().model_dump()
     if reference is None:
         return False
     center, mad = reference["median"], reference["mad"]
     if role in {"ram_free", "swap_free"}:
-        return center > 0 and value <= center * 0.5 and center - value >= 3 * mad
-    return value >= max(0.1, center) * 2 and value - center >= max(0.1, 3 * mad)
+        return (
+            center > 0
+            and value <= center * (1 - settings["memory_drop_percent"] / 100)
+            and center - value >= 3 * mad
+        )
+    return value >= max(0.1, center) * settings["resource_multiplier"] and value - center >= max(
+        0.1, 3 * mad
+    )
 
 
 def apache_globals(observation):

@@ -113,6 +113,58 @@ test('administrator configures independent services, persists changes and revoke
           open: 1,
           critical: 1,
           resolved: 0,
+          rows: [
+            {
+              id: 'apache',
+              name: 'Apache principal',
+              kind: 'apache_status',
+              status: 'ok',
+              state: 'critical',
+              partial: false,
+              history_note: null,
+              bins: [
+                {
+                  start: overviewAt,
+                  end: overviewAt,
+                  state: 'critical',
+                  coverage: 'partial',
+                  samples: 2,
+                  incidents: 1,
+                  resolved: 0,
+                  details: [
+                    {
+                      subject: 'domain:example.test',
+                      service: 'Apache principal',
+                      opened_at: overviewAt,
+                      resolved_at: null,
+                      severity: 'critical',
+                    },
+                  ],
+                },
+              ],
+            },
+            {
+              id: 'mrtg',
+              name: 'MRTG de prueba',
+              kind: 'mrtg',
+              status: 'ok',
+              state: 'observed',
+              partial: false,
+              history_note: null,
+              bins: [
+                {
+                  start: overviewAt,
+                  end: overviewAt,
+                  state: 'observed',
+                  coverage: 'complete',
+                  samples: 6,
+                  incidents: 0,
+                  resolved: 0,
+                  details: [],
+                },
+              ],
+            },
+          ],
           bins: [
             {
               start: overviewAt,
@@ -211,6 +263,12 @@ test('administrator configures independent services, persists changes and revoke
   await timeSegment.hover();
   await expect(page.getByRole('tooltip')).toContainText('Dominio: example.test');
   await expect(page.getByRole('tooltip')).toContainText('Cobertura parcial');
+  const healthyRow = page.locator('.service-timeline-row').filter({ hasText: 'MRTG de prueba' });
+  await expect(healthyRow.locator('.incident-segment.observed')).toHaveCount(1);
+  await healthyRow.locator('.incident-segment').hover();
+  await expect(page.getByRole('tooltip')).toContainText(
+    'Lecturas recientes y completas de este servicio.',
+  );
   await timeSegment.focus();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('tooltip')).toHaveCount(0);
@@ -236,6 +294,12 @@ test('administrator configures independent services, persists changes and revoke
   await page.getByRole('button', { name: 'Correo', exact: true }).click();
   await expect(page.getByLabel('Activar avisos por email')).not.toBeChecked();
   await page.getByRole('button', { name: 'Configuración', exact: true }).click();
+  await page.getByLabel('Multiplicador de actividad del dominio').fill('4');
+  await page.getByRole('button', { name: 'Guardar ajustes de alertas' }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Ajustes guardados' })).toBeVisible();
+  await page.getByRole('button', { name: 'Estado del servidor', exact: true }).click();
+  await page.getByRole('button', { name: 'Configuración', exact: true }).click();
+  await expect(page.getByLabel('Multiplicador de actividad del dominio')).toHaveValue('4');
   await page.getByRole('button', { name: 'Ver diagnóstico', exact: true }).click();
   await expect(page.getByText('Aún no hay muestras.', { exact: false })).toBeVisible();
   await page.getByRole('dialog').getByLabel('Cerrar', { exact: true }).click();

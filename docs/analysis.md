@@ -1,6 +1,6 @@
 # Estado del servidor e incidentes
 
-La navegación comienza en **Inicio → Mis servidores → Ver servidor**. El resumen conserva la franja temporal; **Gráficos y rankings** amplía los datos. Las fuentes se configuran por servidor y el correo por cuenta. Consulta [fuentes opcionales y GoAccess](goaccess.md).
+La navegación comienza en **Inicio → Mis servidores → Ver servidor**. El resumen conserva las franjas temporales; **Gráficos y rankings** amplía los datos. Las fuentes se configuran por servidor y el correo por cuenta. Consulta [fuentes opcionales y GoAccess](goaccess.md).
 
 ## Fuentes y uso
 
@@ -61,8 +61,29 @@ API privada: `GET /api/v1/servers/{id}/analysis` (servicio, dominio y periodo op
 
 ## Resumen temporal en la home
 
-Cada servidor muestra una franja compacta de las últimas 24 horas, con tramos de treinta minutos y contadores de incidencias abiertas, de prioridad alta y resueltas. Resume todos sus servicios Apache; no mezcla otros servidores. En escritorio, pasar el ratón por un tramo muestra periodo, cobertura, dominios/recursos, servicio y fechas de apertura/resolución. También funciona con foco de teclado (Escape cierra el detalle) y toque en móvil. «Ver incidentes» abre el listado completo.
+Cada servidor muestra una fila compacta por servicio configurado (incluidos varios del mismo tipo), con las últimas 24 horas en tramos de treinta minutos. En móvil cada fila se reparte en dos líneas. Los avisos de dominio aparecen en Apache; los de recursos se asignan al servicio MRTG de la métrica de evidencia. Los contadores generales conservan también los incidentes antiguos sin procedencia suficiente para asignarles una fila. En escritorio, pasar el ratón por un tramo muestra periodo, cobertura, dominios/recursos, servicio y fechas de apertura/resolución. También funciona con foco de teclado (Escape cierra el detalle) y toque en móvil. «Ver incidentes» abre el listado completo.
 
 El gris rayado indica cobertura insuficiente, nunca un servidor sano. Los tramos sin incidencias registradas tampoco garantizan ausencia de problemas entre recogidas. La prioridad representada es la registrada en el incidente (incluye escalados), no una reconstrucción exacta de cada cambio de severidad. Si se alcanza el límite de registros del resumen se indica que la vista es parcial.
 
-Los incidentes muestran además la fase de evaluación: anomalía vigente, recuperación (muestras válidas de tres), espera de datos o recuperación confirmada. El último valor anómalo y su fecha son evidencias históricas; no se presentan como una lectura actual durante la recuperación.
+Los incidentes muestran además la fase de evaluación: anomalía vigente, recuperación (muestras válidas respecto al número configurado), espera de datos o recuperación confirmada. El último valor anómalo y su fecha son evidencias históricas; no se presentan como una lectura actual durante la recuperación.
+
+## Ajustes de alertas por servidor
+
+En **Configuración → Alertas de este servidor**, el administrador puede cambiar:
+
+| Ajuste | Predeterminado | Rango |
+|---|---:|---:|
+| Multiplicador de actividad del dominio | 3 | 1,1–100 |
+| Incremento mínimo de conexiones/apariciones | 5 | 1–10.000 |
+| Caída de memoria libre respecto a la mediana | 50 % | 1–99 % |
+| Multiplicador de CPU/carga | 2 | 1,1–100 |
+| Muestras consecutivas para abrir | 2 | 2–12 |
+| Muestras consecutivas para resolver | 3 | 2–12 |
+
+Son parámetros del detector real, no cambios de color. Se conservan la cobertura mínima, el filtro MAD y el histórico propio de cada dominio/recurso. La memoria permanece naranja salvo uso de swap confirmado mediante capacidad total verificada; ese criterio prevalece sobre el porcentaje de caída. El envío SMTP sigue sujeto a su configuración y cooldown.
+
+La API autenticada y protegida por CSRF es `GET/PUT /api/v1/servers/{id}/alert-settings`. Guardar una modificación incrementa su revisión y deja auditoría. Los incidentes guardan los parámetros utilizados como evidencia. Se reinician las confirmaciones pendientes de ese servidor; se conservan incidentes, históricos y referencias de apertura. Las nuevas reglas se aplican en las siguientes evaluaciones.
+
+**Verde** significa lecturas completas sin avisos registrados, no ausencia garantizada de problemas. Para un tramo se exigen al menos cinco intervalos correctos, y en MRTG todas las métricas seleccionadas de la revisión actual, con fechas de origen recientes. Las lecturas fallidas, parciales o antiguas se muestran en naranja; los huecos, en gris. El estado actual se muestra junto al nombre, incluidas pausa y archivo. Cambiar una revisión deja sin cobertura comparable sus lecturas anteriores.
+
+GoAccess guarda ahora un resultado de comprobación cada cinco minutos, separado del informe deduplicado, con retención de 90 días y limpieza también en backup/restauración. Su franja comienza con esta versión; no inventa comprobaciones pasadas a partir de informes antiguos. Un informe desactualizado permanece en naranja aunque su URL responda.

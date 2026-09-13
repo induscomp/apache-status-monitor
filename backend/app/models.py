@@ -63,6 +63,7 @@ class Server(Base):
     name: Mapped[str] = mapped_column(String(100), unique=True)
     description: Mapped[str] = mapped_column(String(1000), default="")
     tags: Mapped[list] = mapped_column(JSONB, default=list)
+    alert_settings: Mapped[dict] = mapped_column(JSONB, default=dict)
     archived: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
@@ -239,3 +240,14 @@ class GoAccessState(Base):
     status: Mapped[str] = mapped_column(String(20))
     report_id: Mapped[str | None] = mapped_column(ForeignKey("goaccess_reports.id"), nullable=True)
     warnings: Mapped[list] = mapped_column(JSONB, default=list)
+
+
+class ServiceCheck(Base):
+    """Polling outcome history; never contains report bodies or credentials."""
+
+    __tablename__ = "service_checks"
+    id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=identifier)
+    service_id: Mapped[str] = mapped_column(ForeignKey("services.id"), index=True)
+    revision: Mapped[int] = mapped_column()
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, index=True)
+    status: Mapped[str] = mapped_column(String(20))

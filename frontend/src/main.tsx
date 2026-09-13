@@ -29,6 +29,7 @@ import { Setup } from './Setup';
 import { ApacheDiagnostics } from './ApacheDiagnostics';
 import { MrtgDiagnostics } from './MrtgDiagnostics';
 import { GoAccessDiagnostics } from './GoAccessDiagnostics';
+import { AlertConfiguration } from './AlertConfiguration';
 import { Dashboard } from './Dashboard';
 import { ServerOverview, MailConfiguration } from './ServerOverview';
 import type { Health, Page, Server, Service, Session } from './api';
@@ -835,6 +836,9 @@ function Workspace({ session, expired }: { session: Session; expired: () => void
           )}
           {view === 'configuration' && (
             <>
+              {selected && (
+                <AlertConfiguration key={selected} serverId={selected} csrf={session.csrf_token} />
+              )}
               <section className="stats" aria-label="Resumen">
                 <div className="stat">
                   <span>

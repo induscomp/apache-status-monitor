@@ -465,7 +465,7 @@ export function ServerOverview({
                   {i.progress && (
                     <p>
                       {i.progress.phase === 'recovering'
-                        ? `Recuperación en curso: ${i.progress.recovery_samples}/3 muestras válidas.`
+                        ? `Recuperación en curso: ${i.progress.recovery_samples}/${i.progress.required_recovery_samples} muestras válidas.`
                         : i.progress.phase === 'awaiting'
                           ? 'Esperando evidencia reciente y comparable; no se considera resuelto.'
                           : i.progress.phase === 'resolved'
@@ -492,7 +492,7 @@ export function ServerOverview({
                   </p>
                   <p>
                     {i.status === 'resolved'
-                      ? 'La actividad volvió a su referencia durante tres muestras válidas. El aviso se conserva como histórico.'
+                      ? 'La actividad volvió a su referencia durante las muestras válidas requeridas. El aviso se conserva como histórico.'
                       : 'Qué revisar: si el cambio persiste, qué dominios e IPs coinciden y si aumentan los POST a rutas sensibles.'}
                   </p>
                   <details>
@@ -799,8 +799,9 @@ export function MailConfiguration({ csrf, accountEmail }: { csrf: string; accoun
         que las recibirá. La dirección de acceso es independiente.
       </p>
       <p>
-        SMTP con TLS directo o STARTTLS obligatorio y certificado verificado. Dos muestras anómalas
-        abren el incidente; tres recuperadas lo resuelven. Recordatorios como máximo cada hora.
+        SMTP con TLS directo o STARTTLS obligatorio y certificado verificado. Las muestras anómalas
+        configuradas abren el incidente; las recuperadas configuradas lo resuelven. Recordatorios
+        como máximo cada hora.
       </p>
       <form
         className="mail-form"
