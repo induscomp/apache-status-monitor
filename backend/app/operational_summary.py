@@ -414,7 +414,7 @@ def domain_ranking(frames, services, start, end):
     counts = {sid: sum(f.service_id == sid for f in valid) for sid in services}
     leaders = sorted(
         (k for k in totals if totals[k] > 0), key=lambda k: totals[k] / counts[k[0]], reverse=True
-    )[:5]
+    )[:12]
     result = []
     for sid, domain in leaders:
         samples = [f for f in valid if f.service_id == sid]

@@ -92,4 +92,4 @@ GoAccess guarda ahora un resultado de comprobación cada cinco minutos, separado
 
 ## Ranking compacto de dominios
 
-El resumen incluye hasta cinco dominios ordenados por la media de conexiones activas de las capturas válidas de las últimas 24 horas. Cada fila conserva su servicio Apache, muestra lectura actual y pico, y una mini gráfica con medias de 30 minutos en escala común. Una captura válida sin ese dominio cuenta como cero; un intervalo sin capturas queda vacío, no se convierte en cero. La última lectura fallida o antigua no se presenta como actual. Estos valores describen concurrencia observada, no visitas ni tráfico acumulado.
+El resumen incluye hasta doce dominios ordenados por la media de conexiones activas de las capturas válidas de las últimas 24 horas. Cada fila conserva su servicio Apache, muestra lectura actual y pico, y una mini gráfica con medias de 30 minutos en escala común. Una captura válida sin ese dominio cuenta como cero; un intervalo sin capturas queda vacío, no se convierte en cero. La última lectura fallida o antigua no se presenta como actual. Estos valores describen concurrencia observada, no visitas ni tráfico acumulado.
