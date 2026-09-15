@@ -23,6 +23,15 @@ export type Monitor = {
     unit?: string;
     display_bytes?: number | null;
   }[];
+  ranking?: {
+    domain: string;
+    service: string;
+    service_id: string;
+    average: number;
+    current: number | null;
+    peak: number;
+    bins: { start: string; value: number | null; samples: number }[];
+  }[];
   bins: IncidentSummary['bins'];
 };
 const icons = {
@@ -90,7 +99,7 @@ export function OperationalMonitors({
         return (
           <article className={`monitor-row ${row.state}`} key={row.id} aria-label={row.name}>
             <div className="monitor-identity">
-              <Icon size={21} aria-hidden="true" />
+              <Icon size={16} aria-hidden="true" />
               <div>
                 <h3>{row.name}</h3>
                 <strong className="monitor-value">{valueText(row)}</strong>
@@ -125,7 +134,7 @@ export function OperationalMonitors({
               />
             </div>
             <details className="monitor-explanation">
-              <summary>Ver detalle de {row.name.toLowerCase()}</summary>
+              <summary aria-label={`Ver detalle de ${row.name.toLowerCase()}`}>Detalle</summary>
               <p>{row.reason}</p>
               <p>
                 Última lectura:{' '}
@@ -196,6 +205,66 @@ export function OperationalMonitors({
           Sin evaluación suficiente
         </span>
       </p>
+      {(rows.find((row) => row.id === 'domains')?.ranking?.length ?? 0) > 0 && (
+        <div className="domain-leaders">
+          <h3>Dominios más activos · 24 h</h3>
+          <p>
+            Ordenados por conexiones activas medias en las capturas. Cada barra muestra la media de
+            30 min; gris = sin datos.
+          </p>
+          <div className="domain-leader heading">
+            <span>Dominio</span>
+            <span>Ahora / pico</span>
+            <span>Evolución · misma escala</span>
+          </div>
+          {rows
+            .find((row) => row.id === 'domains')!
+            .ranking!.map((entry) => {
+              const scale = Math.max(
+                1,
+                ...rows
+                  .find((row) => row.id === 'domains')!
+                  .ranking!.flatMap((item) => item.bins.map((bin) => bin.value ?? 0)),
+              );
+              return (
+                <div className="domain-leader" key={`${entry.service_id}:${entry.domain}`}>
+                  <span className="domain-leader-name">
+                    <strong>{entry.domain}</strong>
+                    <small>
+                      {entry.service} · media {numeric(entry.average)}
+                    </small>
+                  </span>
+                  <span>
+                    {entry.current === null ? '—' : numeric(entry.current)} / {numeric(entry.peak)}
+                  </span>
+                  <svg
+                    viewBox="0 0 240 30"
+                    role="img"
+                    aria-label={`Evolución de ${entry.domain}, media ${entry.average}, pico ${entry.peak}`}
+                  >
+                    {entry.bins.map((bin, index) => (
+                      <rect
+                        key={index}
+                        x={index * 5}
+                        y={bin.value === null ? 26 : 30 - Math.max(1, (bin.value / scale) * 30)}
+                        width="4"
+                        height={bin.value === null ? 4 : Math.max(1, (bin.value / scale) * 30)}
+                        fill={bin.value === null ? '#d8dfdc' : '#478475'}
+                      >
+                        <title>
+                          {new Date(bin.start).toLocaleString('es')} ·{' '}
+                          {bin.value === null
+                            ? 'Sin datos'
+                            : `${bin.value} conexiones medias · ${bin.samples} capturas`}
+                        </title>
+                      </rect>
+                    ))}
+                  </svg>
+                </div>
+              );
+            })}
+        </div>
+      )}
       <p className="monitor-footnote">
         Cada tramo son 30 minutos. Pasa el ratón, usa el teclado o toca para ver el detalle. Los
         huecos no confirman un estado correcto.

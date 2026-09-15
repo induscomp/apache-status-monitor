@@ -67,6 +67,24 @@ test('server monitors show resources and activity instead of collection sources'
     },
   ].map((row) => ({
     ...row,
+    ranking:
+      row.id === 'domains'
+        ? [
+            {
+              domain: 'example.test',
+              service: 'Apache A',
+              service_id: 'a',
+              average: 2,
+              current: 4,
+              peak: 8,
+              bins: Array.from({ length: 48 }, (_, i) => ({
+                start: at,
+                value: i < 10 ? null : i % 5,
+                samples: i < 10 ? 0 : 6,
+              })),
+            },
+          ]
+        : [],
     latest_at: at,
     reason:
       row.id === 'ips'
@@ -145,6 +163,8 @@ test('server monitors show resources and activity instead of collection sources'
   await page.getByRole('button', { name: 'Ver servidor Servidor de prueba', exact: true }).click();
   const panel = page.getByRole('region', { name: 'Estado de los indicadores del servidor' });
   await expect(panel.getByRole('article')).toHaveCount(6);
+  await expect(panel.getByText('example.test', { exact: true })).toBeVisible();
+  await expect(panel.getByRole('img', { name: /Evolución de example.test/ })).toBeVisible();
   await expect(panel).not.toContainText('GoAccess');
   await expect(panel).not.toContainText('Datos parciales');
   await expect(panel.getByText('2,22 GB', { exact: true })).toBeVisible();
@@ -166,7 +186,7 @@ test('server monitors show resources and activity instead of collection sources'
   await page.keyboard.press('Escape');
   await expect(page.getByRole('tooltip')).toHaveCount(0);
   await page.screenshot({ path: testInfo.outputPath('operational-desktop.png'), fullPage: true });
-  await panel.getByText('Ver detalle de conexiones por ip', { exact: true }).click();
+  await panel.getByLabel('Ver detalle de conexiones por ip', { exact: true }).click();
   await expect(panel.getByText('3 conexiones · Proveedor de prueba')).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
   await swap.locator('.incident-segment').first().click();

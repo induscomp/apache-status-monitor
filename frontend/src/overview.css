@@ -470,3 +470,127 @@
     font-size: 15px;
   }
 }
+
+/* Dense overview: explanations stay available on demand. */
+.operational-monitors {
+  padding: 16px 20px;
+}
+.operational-monitors .incident-summary-heading h2 {
+  font-size: 18px;
+  margin: 0;
+}
+.operational-monitors .incident-summary-heading p {
+  font-size: 12px;
+  margin: 4px 0;
+}
+.operational-monitors .incident-summary-heading button {
+  padding: 8px 12px;
+  font-size: 12px;
+}
+.operational-monitors .monitor-intro {
+  margin: 6px 0;
+  font-size: 11px;
+}
+.operational-monitors .monitor-row {
+  padding: 8px 0;
+  gap: 3px 16px;
+}
+.operational-monitors .monitor-identity {
+  gap: 8px;
+  align-items: center;
+}
+.operational-monitors .monitor-identity h3 {
+  display: inline;
+  font-size: 12px;
+  margin-right: 8px;
+}
+.operational-monitors .monitor-value {
+  display: inline;
+  font-size: 14px;
+}
+.operational-monitors .monitor-identity small {
+  font-size: 10px;
+  margin-top: 1px;
+}
+.operational-monitors .monitor-status-history > .service-timeline-status {
+  margin-bottom: 3px;
+  padding: 2px 6px;
+  font-size: 10px;
+}
+.operational-monitors .monitor-status-history .incident-segment {
+  min-height: 14px;
+  height: 14px;
+  border-radius: 2px;
+}
+.operational-monitors .monitor-explanation {
+  font-size: 11px;
+}
+.operational-monitors .monitor-explanation:not([open]) {
+  grid-column: 1;
+}
+.operational-monitors .timeline-legend,
+.operational-monitors .timeline-scale,
+.operational-monitors .monitor-footnote {
+  font-size: 10px;
+  margin: 6px 0;
+}
+.domain-leaders {
+  border-top: 1px solid #dde6e1;
+  margin-top: 12px;
+  padding-top: 10px;
+}
+.domain-leaders h3 {
+  font-size: 14px;
+  margin: 0 0 4px;
+}
+.domain-leaders > p {
+  font-size: 11px;
+  color: #617369;
+  margin: 4px 0 8px;
+}
+.domain-leader {
+  display: grid;
+  grid-template-columns: minmax(130px, 1fr) 85px minmax(120px, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 5px 0;
+  font-size: 12px;
+}
+.domain-leader.heading {
+  color: #617369;
+  font-size: 10px;
+}
+.domain-leader-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.domain-leader-name small {
+  display: block;
+  font-size: 10px;
+  color: #617369;
+}
+.domain-leader svg {
+  width: 100%;
+  height: 30px;
+}
+@media (max-width: 700px) {
+  .operational-monitors {
+    padding: 12px;
+  }
+  .operational-monitors .monitor-row {
+    gap: 4px;
+  }
+  .operational-monitors .monitor-status-history .incident-segments {
+    grid-template-columns: repeat(48, minmax(0, 1fr));
+  }
+  .domain-leader {
+    grid-template-columns: minmax(0, 1fr) 65px;
+    gap: 4px 8px;
+  }
+  .domain-leader svg {
+    grid-column: 1 / -1;
+  }
+  .domain-leader.heading span:last-child {
+    display: none;
+  }
+}

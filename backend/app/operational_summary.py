@@ -283,6 +283,7 @@ def build_monitors(db, server_id, start, end, incidents, truncated=False):
                 context=context,
                 bins=activity_bins(start, end, frames, apache, related, truncated, key),
                 action=key,
+                ranking=domain_ranking(frames, apache, start, end) if key == "domains" else [],
             )
         )
     return rows
@@ -400,3 +401,51 @@ def activity_bins(start, end, frames, services, incidents, truncated, key):
             item["state"] = "warning"
         bins.append(item)
     return bins
+
+
+def domain_ranking(frames, services, start, end):
+    """Rank sampled concurrency, keeping each Apache service and missing interval distinct."""
+    valid = [f for f in frames if f.valid]
+    totals = {}
+    for f in valid:
+        for domain, data in f.domains.items():
+            key = (f.service_id, domain)
+            totals[key] = totals.get(key, 0) + data.get("active", 0)
+    counts = {sid: sum(f.service_id == sid for f in valid) for sid in services}
+    leaders = sorted(
+        (k for k in totals if totals[k] > 0), key=lambda k: totals[k] / counts[k[0]], reverse=True
+    )[:5]
+    result = []
+    for sid, domain in leaders:
+        samples = [f for f in valid if f.service_id == sid]
+        bins = []
+        for index in range(48):
+            left = start + timedelta(minutes=index * 30)
+            right = left + timedelta(minutes=30)
+            values = [
+                f.domains.get(domain, {}).get("active", 0)
+                for f in samples
+                if left <= f.observed_at < right
+            ]
+            bins.append(
+                {
+                    "start": left.isoformat(),
+                    "value": round(sum(values) / len(values), 2) if values else None,
+                    "samples": len(values),
+                }
+            )
+        latest = max((f for f in frames if f.service_id == sid), key=lambda f: f.observed_at)
+        result.append(
+            {
+                "domain": domain,
+                "service": services[sid].name,
+                "service_id": str(sid),
+                "average": round(totals[sid, domain] / counts[sid], 2),
+                "current": latest.domains.get(domain, {}).get("active", 0)
+                if latest.valid and end - latest.observed_at <= timedelta(minutes=10)
+                else None,
+                "peak": max(f.domains.get(domain, {}).get("active", 0) for f in samples),
+                "bins": bins,
+            }
+        )
+    return result

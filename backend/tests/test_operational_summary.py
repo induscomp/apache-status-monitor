@@ -197,3 +197,38 @@ def test_resource_correlation_ignores_superseded_metric_configuration():
         db.flush()
         resources, _ = correlate(db, svc.server_id, now())
         assert "cpu" not in resources
+
+
+def test_domain_ranking_preserves_service_scope_gaps_and_invalid_latest():
+    from types import SimpleNamespace
+
+    from app.operational_summary import domain_ranking
+
+    end = now()
+    start = end - timedelta(hours=24)
+    services = {1: SimpleNamespace(name="Apache A"), 2: SimpleNamespace(name="Apache B")}
+
+    def sample(sid, minutes, domains, valid=True):
+        return SimpleNamespace(
+            service_id=sid,
+            observed_at=end - timedelta(minutes=minutes),
+            domains=domains,
+            valid=valid,
+        )
+
+    frames = [
+        sample(1, 10, {"example.test": {"active": 8}}),
+        sample(1, 5, {}),
+        sample(1, 1, {}, False),
+        sample(2, 5, {"example.test": {"active": 2}}),
+    ]
+    rows = domain_ranking(frames, services, start, end)
+    assert len(rows) == 2
+    assert rows[0]["service"] == "Apache A"
+    assert rows[0]["average"] == 4
+    assert rows[0]["peak"] == 8
+    assert rows[0]["current"] is None
+    assert rows[0]["bins"][0]["value"] is None
+    assert rows[0]["bins"][-1]["value"] == 4
+    assert rows[1]["average"] == 2
+    assert rows[1]["current"] == 2
