@@ -110,6 +110,11 @@ def correlate(db, server_id, at):
             .options(defer(MrtgObservation.raw_encrypted))
             .where(
                 MrtgObservation.metric_id == metric.id,
+                MrtgObservation.metric_revision == metric.revision,
+                MrtgObservation.revision
+                == select(Service.revision)
+                .where(Service.id == metric.service_id)
+                .scalar_subquery(),
                 MrtgObservation.status != "error",
                 MrtgObservation.observed_at >= at - timedelta(minutes=5),
                 MrtgObservation.observed_at <= at + timedelta(minutes=2),

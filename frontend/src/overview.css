@@ -357,3 +357,116 @@
     flex-wrap: wrap;
   }
 }
+
+.monitor-column-head,
+.monitor-row {
+  display: grid;
+  grid-template-columns: minmax(200px, 0.8fr) minmax(0, 1.6fr);
+  gap: 14px 24px;
+}
+.monitor-column-head {
+  color: #617369;
+  font-size: 11px;
+  padding: 8px 0;
+}
+.monitor-row {
+  padding: 16px 0;
+  border-top: 1px solid #dde6e1;
+  align-items: center;
+}
+.monitor-identity {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  min-width: 0;
+}
+.monitor-identity > svg {
+  color: #478475;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+.monitor-identity h3 {
+  margin: 0 0 5px;
+  font-size: 14px;
+}
+.monitor-value {
+  font-size: 19px;
+  display: block;
+}
+.monitor-identity small {
+  display: block;
+  color: #63756b;
+  font-size: 11px;
+  margin-top: 3px;
+}
+.monitor-status-history {
+  min-width: 0;
+}
+.monitor-status-history > .service-timeline-status {
+  display: inline-block;
+  margin-bottom: 8px;
+}
+.monitor-status-history .incident-segment {
+  min-height: 24px;
+}
+.monitor-status-history .incident-segments {
+  gap: 2px;
+}
+.monitor-explanation {
+  grid-column: 1 / -1;
+  font-size: 12px;
+}
+.monitor-explanation summary {
+  cursor: pointer;
+  color: #356c59;
+}
+.monitor-explanation li {
+  overflow-wrap: anywhere;
+  margin-bottom: 8px;
+}
+.monitor-explanation p {
+  margin: 10px 0;
+}
+.monitor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.monitor-actions button {
+  font-size: 12px;
+}
+.monitor-intro,
+.monitor-footnote {
+  font-size: 12px;
+  color: #617369;
+}
+.incident-segment.informational,
+.timeline-legend i.informational {
+  background: #7695ac;
+}
+.incident-segment.learning {
+  background: #d8dfdc;
+}
+.service-timeline-status.informational {
+  background: #edf3f8;
+  color: #365b78;
+}
+.service-timeline-status.learning {
+  background: #edf0ee;
+  color: #52615b;
+}
+@media (max-width: 700px) {
+  .monitor-column-head {
+    display: none;
+  }
+  .monitor-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .monitor-status-history .incident-segments {
+    grid-template-columns: repeat(24, minmax(0, 1fr));
+  }
+  .monitor-identity h3 {
+    font-size: 15px;
+  }
+}

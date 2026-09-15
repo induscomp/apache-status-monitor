@@ -1,7 +1,10 @@
 import { useId, useState } from 'react';
+import { OperationalMonitors } from './OperationalMonitors';
+import type { Monitor } from './OperationalMonitors';
 import { subjectText } from './incidentText';
 
 export type IncidentSummary = {
+  monitors?: Monitor[];
   start: string;
   end: string;
   partial: boolean;
@@ -36,11 +39,13 @@ export type IncidentSummary = {
   }[];
 };
 const labels: Record<string, string> = {
-  critical: 'Incidencia de prioridad alta',
+  critical: 'Prioridad alta',
   warning: 'Aviso: incidencia o lectura incompleta',
   resolved: 'Incidencia resuelta',
   observed: 'Sin incidencias registradas',
   unknown: 'Cobertura insuficiente',
+  learning: 'Aprendiendo',
+  informational: 'Observación: sin evaluación independiente de anomalías',
 };
 const format = (value: string) =>
   new Date(value).toLocaleString('es', {
@@ -52,11 +57,24 @@ const format = (value: string) =>
 export function IncidentTimeline({
   summary,
   openIncidents,
+  showCharts,
+  configure,
 }: {
   summary: IncidentSummary;
   openIncidents: () => void;
+  showCharts?: () => void;
+  configure?: () => void;
 }) {
   const [selection, setSelection] = useState<{ row: string; index: number } | null>(null);
+  if (summary.monitors)
+    return (
+      <OperationalMonitors
+        summary={summary}
+        openIncidents={openIncidents}
+        showCharts={showCharts}
+        configure={configure}
+      />
+    );
   return (
     <section className="incident-summary" aria-label="Resumen temporal de incidencias">
       <div className="incident-summary-heading">
@@ -150,11 +168,13 @@ const statusLabels: Record<string, string> = {
   paused: 'En pausa',
   archived: 'Archivado',
 };
-function TimelineBins({
+export function TimelineBins({
+  indicator = false,
   bins,
   selected,
   setSelected,
 }: {
+  indicator?: boolean;
   bins: IncidentSummary['bins'];
   selected: number | null;
   setSelected: (value: number | null) => void;
@@ -198,7 +218,9 @@ function TimelineBins({
           <p>
             {detail.samples} muestras.{' '}
             {detail.coverage === 'complete'
-              ? 'Lecturas recientes y completas de este servicio.'
+              ? indicator
+                ? 'Lecturas completas de este indicador en el tramo.'
+                : 'Lecturas recientes y completas de este servicio.'
               : detail.coverage === 'partial'
                 ? 'Cobertura parcial: faltan lecturas comparables.'
                 : 'Sin muestras: no permite evaluar el estado.'}

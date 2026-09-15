@@ -94,7 +94,10 @@ def summarize(db, server_id):
                 ],
             }
         )
+    from app.operational_summary import build_monitors
+
     return {
+        "monitors": build_monitors(db, server_id, start, end, incidents, partial),
         "start": start.isoformat(),
         "end": end.isoformat(),
         "partial": partial,

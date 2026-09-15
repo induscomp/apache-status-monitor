@@ -407,7 +407,12 @@ export function ServerOverview({
       ) : (
         <>
           {view === 'status' && data.incident_summary && (
-            <IncidentTimeline summary={data.incident_summary} openIncidents={openIncidents} />
+            <IncidentTimeline
+              summary={data.incident_summary}
+              openIncidents={openIncidents}
+              showCharts={showCharts}
+              configure={configure}
+            />
           )}
           <div className={`overview-status ${data.state} ${data.priority || ''}`}>
             <h2>{states[data.state]}</h2>
