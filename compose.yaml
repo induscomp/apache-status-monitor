@@ -1,0 +1,134 @@
+name: apache-status-monitor
+
+x-app: &app
+  build: ./backend
+  image: apache-status-monitor-backend:local
+  user: "${SMON_UID:-1000}:${SMON_GID:-1000}"
+  environment: &environment
+    SMON_ENVIRONMENT: ${SMON_ENVIRONMENT:-production}
+    SMON_PUBLIC_ORIGIN: ${SMON_PUBLIC_ORIGIN:-https://monitor.example.com}
+    SMON_CF_TEAM_DOMAIN: ${SMON_CF_TEAM_DOMAIN:-}
+    SMON_CF_AUDIENCE: ${SMON_CF_AUDIENCE:-}
+    SMON_ALLOWED_MONITOR_ORIGINS: ${SMON_ALLOWED_MONITOR_ORIGINS:-[]}
+    SMON_ALLOWED_HTTP_ORIGINS: ${SMON_ALLOWED_HTTP_ORIGINS:-[]}
+  secrets:
+    - db_password
+    - encryption_key
+  networks: [database, application]
+  volumes: [./geoip:/data/geoip:ro]
+  read_only: true
+  tmpfs: ["/tmp:rw,noexec,nosuid,size=32m"]
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  mem_limit: 512m
+  pids_limit: 100
+
+services:
+  postgres:
+    image: postgres:18-alpine@sha256:d3e1620b530c944afa6e887d22eb899824da68e19c52024bf98f5220c88a65b2
+    environment:
+      POSTGRES_USER: smon_owner
+      POSTGRES_DB: smon
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_owner_password
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+    secrets: [db_owner_password]
+    volumes: [postgres_data:/var/lib/postgresql]
+    networks: [database]
+    shm_size: 128mb
+    mem_limit: 768m
+    pids_limit: 150
+    restart: unless-stopped
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U smon_owner -d smon"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  migrate:
+    <<: *app
+    command: [python, -m, app.migrate]
+    environment:
+      <<: *environment
+      SMON_DATABASE_USER: smon_owner
+      SMON_DATABASE_PASSWORD_FILE: /run/secrets/db_owner_password
+    secrets: [db_owner_password, db_password, encryption_key]
+    depends_on:
+      postgres: {condition: service_healthy}
+    restart: "no"
+
+  backend:
+    <<: *app
+    secrets: [db_password, encryption_key, setup_token]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    restart: unless-stopped
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 4
+      start_period: 10s
+
+  worker:
+    <<: *app
+    secrets: [db_password, encryption_key, backup_key]
+    volumes: [./geoip:/data/geoip:ro, ./backups:/data/backups]
+    command: [python, -m, app.worker]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    restart: unless-stopped
+    healthcheck:
+      test: [CMD, python, -c, "from app.db import session_factory; from app.models import ComponentHeartbeat, now; from datetime import timedelta; db=session_factory()(); h=db.get(ComponentHeartbeat, 'scheduler'); raise SystemExit(0 if h and h.seen_at > now()-timedelta(seconds=90) else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  nginx:
+    build: ./frontend
+    image: apache-status-monitor-web:local
+    networks: [application]
+    depends_on:
+      backend: {condition: service_healthy}
+    restart: unless-stopped
+    read_only: true
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=32m"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 128m
+    pids_limit: 50
+    healthcheck:
+      test: [CMD, wget, -q, --spider, http://127.0.0.1:8080/healthz]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+
+  cloudflared:
+    image: cloudflare/cloudflared@sha256:ff69a2225ad7c6f85ed84fbd5f3087df46202426b2388ec60214098e0adf05e9
+    profiles: [tunnel]
+    user: "${SMON_UID:-1000}:${SMON_GID:-1000}"
+    command: [tunnel, --no-autoupdate, --metrics, "0.0.0.0:2000", run, --token-file, /run/secrets/cloudflare_token]
+    secrets: [cloudflare_token]
+    networks: [application]
+    depends_on:
+      nginx: {condition: service_healthy}
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 256m
+    pids_limit: 100
+
+networks:
+  database: {internal: true}
+  application: {}
+volumes:
+  postgres_data: {}
+secrets:
+  db_owner_password: {file: ./secrets/db_owner_password}
+  db_password: {file: ./secrets/db_password}
+  encryption_key: {file: ./secrets/encryption_key}
+  backup_key: {file: ./secrets/backup_key}
+  setup_token: {file: ./secrets/setup_token}
+  cloudflare_token: {file: ./secrets/cloudflare_token}

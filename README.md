@@ -1,38 +1,48 @@
 # Apache Status Monitor
 
-Monitor web open source para ayudar a webmasters a interpretar el estado de uno o varios servidores Apache y tomar decisiones basadas en su evolución.
+Monitor open source para organizar varios servidores y sus fuentes Apache Status, MRTG y GoAccess.
 
-**Estado: preparación del proyecto. Todavía no hay aplicación ejecutable, cron ni versión apta para producción.** Los controles de seguridad de la aplicación descritos aquí son requisitos pendientes de implementación y pruebas.
+Monitorización cada cinco minutos con **fuentes públicas configurables por servidor: Apache Status, MRTG y GoAccess**. Incluye estado del servidor, gráficos temporales, rankings por dominio/IP/ruta, correlación con memoria/carga e incidentes basados en el histórico de cada dominio. Correo SMTP configurable y GeoIP local opcional. Consulta [uso, interpretación y límites](docs/analysis.md).
 
-## Objetivo
+GoAccess conserva los totales del periodo del informe y muestra su antigüedad; no mezcla esos totales con muestras instantáneas ni alertas actuales. La home reúne los servidores, con acceso a cada resumen y sus detalles.
 
-- Recoger periódicamente métricas de endpoints autorizados `/server-status?auto` mediante un cron que ejecute un recolector interno.
-- Mostrar disponibilidad, workers ocupados y libres, tráfico e histórico por servidor.
-- Identificar tendencias y ofrecer observaciones con evidencia, intervalo temporal y límites de interpretación.
-- Distinguir fallos de recogida y datos ausentes de valores reales de cero.
+## Incluye
 
-El producto monitorizará servidores autorizados por su administrador. Las métricas disponibles dependen de la configuración de Apache; no se asumirá que `mod_status` proporciona toda la información necesaria para diagnosticar un servidor.
+- Varios servidores y servicios del mismo tipo; edición, pausa y archivo reversible.
+- Contraseña Argon2id, TOTP, recuperación, sesiones revocables y CSRF.
+- Cloudflare Access con validación de JWT en producción.
+- PostgreSQL con migraciones y cuenta de aplicación sin permisos administrativos.
+- Credenciales de endpoints cifradas y orígenes autorizados por el operador.
+- Interfaz responsive en español, pruebas con PostgreSQL/navegador y CI.
+- Diagnóstico Apache con muestras por servicio, cobertura parcial y originales cifrados.
 
-## Diseño previsto
+## Inicio local
 
-Panel autenticado → API → almacenamiento de métricas.
+Requisitos: Docker Engine, Docker Compose y Python 3 para generar secretos. Los contenedores usan Python 3.14; no se modifica el Python del equipo.
 
-Cron interno → recolector aislado → endpoints Apache autorizados → almacenamiento de métricas.
+```bash
+cp .env.example .env  # solo si no existe
+python3 scripts/init-secrets.py
+docker compose -f compose.yaml -f compose.local.yaml up --build -d --wait
+```
 
-El panel consultará datos almacenados. El cron no dependerá de una ruta HTTP pública. La elección del stack y sus versiones mantenidas se documentará antes de implementar el MVP.
+Abre **http://localhost:8187** y completa el asistente web: copia la clave del archivo `secrets/setup_token`, elige email y contraseña, escanea el QR y guarda los códigos de recuperación. No hace falta crear el usuario desde la terminal. Si ya existe un administrador, aparece el login y el asistente queda cerrado. No hay cuenta ni contraseña predeterminada. Ajusta `SMON_UID`/`SMON_GID` en `.env` si no son 1000.
 
-## Documentación
+**El perfil local omite Access y solo publica en loopback. No lo uses detrás de un túnel público.** Consulta [despliegue](docs/deployment.md) para acceso remoto y configuración de los orígenes monitorizables.
 
-- [Arquitectura y requisitos de seguridad](docs/architecture.md)
-- [Hoja de ruta](docs/roadmap.md)
-- [Contribuir](CONTRIBUTING.md)
-- [Comunicar vulnerabilidades](SECURITY.md)
+## Arquitectura y documentación
 
-## Licencia
+React + TypeScript + Vite → Nginx → FastAPI → PostgreSQL. Un worker independiente con APScheduler recoge Apache, MRTG e informes GoAccess, correlaciona muestras, evalúa incidentes y procesa el correo configurado. Cloudflared tiene un perfil opcional dedicado.
 
-[MIT](LICENSE). Proyecto independiente, sin afiliación con Apache Software Foundation.
+- [Fuentes por servidor, GoAccess y correo de la cuenta](docs/goaccess.md)
+- [Cómo interpretar avisos, proveedores y memoria](docs/networks-and-alerts.md)
+- [Estado del servidor, incidentes, correo y GeoIP](docs/analysis.md)
+- [Backup cifrado y recuperación](docs/backups.md)
+- [Arquitectura y seguridad](docs/architecture.md)
+- [Instalación y recuperación](docs/deployment.md)
+- [Desarrollo y pruebas](docs/development.md)
+- [Plan de hitos](docs/roadmap.md)
+- [Recogida y diagnóstico de MRTG](docs/mrtg.md)
+- [Contribuir](CONTRIBUTING.md) · [Vulnerabilidades](SECURITY.md)
 
-## Referencias
-
-- [Documentación oficial de mod_status](https://httpd.apache.org/docs/2.4/mod/mod_status.html)
-- [Prevención de SSRF de OWASP](https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html)
+[Licencia MIT](LICENSE). Proyecto independiente, sin afiliación con Apache Software Foundation.
