@@ -47,7 +47,7 @@ Dos muestras anómalas consecutivas abren un incidente. Tres muestras válidas r
 
 ## Email privado
 
-En **Correo de la cuenta**, configura servidor SMTP, TLS directo (habitualmente 465) o STARTTLS obligatorio (habitualmente 587), usuario/contraseña si se requieren, remitente y destinatario. La contraseña se cifra con la clave privada de la instalación y nunca vuelve al navegador. El canal está **desactivado por defecto**. No se necesita correo para recoger datos o consultar incidentes.
+En **Correo de la cuenta**, configura servidor SMTP, TLS directo (habitualmente 465) o STARTTLS obligatorio (habitualmente 587), usuario/contraseña si se requieren, remitente y destinatario. La contraseña se cifra con la clave privada de la instalación y nunca vuelve al navegador. El canal está **desactivado por defecto**. Guarda la configuración, pulsa **Comprobar y enviar prueba**, comprueba la bandeja del destinatario y activa los avisos guardando de nuevo. La aceptación SMTP no garantiza llegada a la bandeja de entrada. Cualquier cambio de conexión, credenciales o direcciones invalida la comprobación. No se necesita correo para recoger datos o consultar incidentes.
 
 La cola registra apertura, escalado, resolución y recordatorios con cooldown de una hora. No envía aperturas históricas de más de quince minutos ni entregas pendientes de más de una hora. Un fallo ambiguo de SMTP queda como `uncertain`: no se reintenta automáticamente porque el servidor pudo aceptar el mensaje antes de cortarse la conexión. Un proceso interrumpido durante el envío se marca igualmente para revisión. Consulta «Últimas entregas» en Correo. No se garantiza recepción hasta configurar y validar el proveedor real.
 
@@ -93,3 +93,9 @@ GoAccess guarda ahora un resultado de comprobación cada cinco minutos, separado
 ## Ranking compacto de dominios
 
 El resumen incluye hasta doce dominios ordenados por la media de conexiones activas de las capturas válidas de las últimas 24 horas. Cada fila conserva su servicio Apache, muestra lectura actual y pico, y una mini gráfica con medias de 30 minutos en escala común. Una captura válida sin ese dominio cuenta como cero; un intervalo sin capturas queda vacío, no se convierte en cero. La última lectura fallida o antigua no se presenta como actual. Estos valores describen concurrencia observada, no visitas ni tráfico acumulado.
+
+## Protección frente a bloqueos SMTP
+
+La prueba manual usa una petición autenticada con CSRF, sin recargar la página. Como máximo se permite una prueba cada cinco minutos y tres por hora; guardar cambios no reinicia el tiempo de espera. No se activa un canal que no haya superado la prueba. Las configuraciones anteriores deben comprobarse de nuevo.
+
+Cada conexión realiza un único método de autenticación, sin probar otros tras un rechazo. El primer fallo de envío suspende todo el canal e invalida la comprobación, incluso si aparecen incidencias nuevas. Los mensajes pendientes se suprimen mientras está desactivado y no se recuperan al activarlo. Los accesos de prueba, configuración y envío se serializan entre procesos. Una entrega incierta no se reintenta automáticamente; el administrador debe revisar los datos y realizar una nueva prueba. Se auditan las comprobaciones y suspensiones sin guardar contraseñas ni respuestas privadas del proveedor en los mensajes de error.

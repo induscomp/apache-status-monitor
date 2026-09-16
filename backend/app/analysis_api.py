@@ -1,4 +1,3 @@
-import json
 import re
 from datetime import timedelta
 from typing import Literal
@@ -11,7 +10,6 @@ from sqlalchemy.orm import Session
 
 from app.alert_settings import AlertSettings, settings_for
 from app.analysis import correlate
-from app.config import get_settings
 from app.db import get_db
 from app.evidence import domain_evidence
 from app.geo import availability, enrich
@@ -22,13 +20,12 @@ from app.models import (
     ComponentHeartbeat,
     EmailDelivery,
     Incident,
-    NotificationConfig,
     Server,
     ServerFrame,
     Service,
     now,
 )
-from app.notifications import configuration
+from app.notifications import configuration, failure_message, lock_channel, send, store
 from app.presentation import ResourcePresentation
 from app.schemas import StrictModel
 from app.security import authenticated, rate_limit
@@ -358,6 +355,7 @@ def mail_settings(auth=Depends(authenticated), db: Session = Depends(get_db)):
 @router.put("/notifications")
 def update_mail(payload: MailSettings, auth=Depends(authenticated), db: Session = Depends(get_db)):
     rate_limit("mail-settings", 10, 300)
+    lock_channel(db)
     old = configuration(db)
     config = payload.model_dump(exclude={"password"})
     password = payload.password.get_secret_value() if payload.password else ""
@@ -371,14 +369,59 @@ def update_mail(payload: MailSettings, auth=Depends(authenticated), db: Session 
             422, "Al cambiar servidor o usuario SMTP, vuelve a introducir la contraseña."
         )
     config["password"] = password or old.get("password", "")
-    encrypted = get_settings().cipher().encrypt(json.dumps(config).encode()).decode()
-    item = db.get(NotificationConfig, 1)
-    if item:
-        item.encrypted = encrypted
-    else:
-        db.add(NotificationConfig(id=1, encrypted=encrypted))
+    unchanged = all(
+        config.get(k) == old.get(k)
+        for k in ("host", "port", "security", "username", "password", "sender", "recipient")
+    )
+    config["verified_at"] = old.get("verified_at") if unchanged else None
+    config["last_test_at"] = old.get("last_test_at")
+    config["last_error"] = old.get("last_error") if unchanged else None
+    if config["enabled"] and not config["verified_at"]:
+        raise HTTPException(409, "Guarda y comprueba el correo antes de activar las alertas.")
+    store(db, config)
     from app.models import AuditEvent
 
     db.add(AuditEvent(action="notifications.update", target_id="1"))
     db.commit()
     return {"saved": True, "enabled": config["enabled"]}
+
+
+@router.post("/notifications/test")
+def test_mail(auth=Depends(authenticated), db: Session = Depends(get_db)):
+    from datetime import datetime
+
+    rate_limit("mail-test", 3, 3600)
+    lock_channel(db)
+    config = configuration(db)
+    last = config.get("last_test_at")
+    if last and now() - datetime.fromisoformat(last) < timedelta(minutes=5):
+        raise HTTPException(
+            429, "Espera cinco minutos entre pruebas para evitar bloqueos del proveedor."
+        )
+    if not all(config.get(k) for k in ("host", "sender", "recipient")):
+        raise HTTPException(422, "Guarda primero servidor, remitente y destinatario.")
+    config.update(enabled=False, verified_at=None, last_test_at=now().isoformat(), last_error=None)
+    # Persist the attempt before network access; a process crash must not bypass cooldown.
+    store(db, config)
+    db.commit()
+    lock_channel(db)
+    current = configuration(db)
+    if current != config:
+        raise HTTPException(409, "La configuración ha cambiado; vuelve a comprobarla.")
+    try:
+        send(config)
+        config["verified_at"] = now().isoformat()
+        message = "El servidor SMTP ha aceptado el correo de prueba. Comprueba tu bandeja y después activa las alertas."
+        ok = True
+    except Exception as error:
+        message = failure_message(error)
+        config["last_error"] = message
+        ok = False
+    store(db, config)
+    db.add(
+        AuditEvent(
+            action="notifications.test_ok" if ok else "notifications.test_failed", target_id="1"
+        )
+    )
+    db.commit()
+    return {"ok": ok, "message": message}

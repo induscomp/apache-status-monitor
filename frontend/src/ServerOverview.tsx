@@ -767,6 +767,8 @@ type Mail = {
   recipient: string;
   password?: string;
   has_password?: boolean;
+  verified_at?: string | null;
+  last_error?: string | null;
   deliveries?: { status: string; transition: string; created_at: string; error: string | null }[];
 };
 export function MailConfiguration({ csrf, accountEmail }: { csrf: string; accountEmail: string }) {
@@ -780,6 +782,8 @@ export function MailConfiguration({ csrf, accountEmail }: { csrf: string; accoun
   });
   const [message, setMessage] = useState('');
   const [ready, setReady] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [dirty, setDirty] = useState(false);
   useEffect(() => {
     let live = true;
     void api<Mail>('/notifications')
@@ -810,8 +814,15 @@ export function MailConfiguration({ csrf, accountEmail }: { csrf: string; accoun
       </p>
       <form
         className="mail-form"
+        onChange={(e) => {
+          if (!(e.target instanceof HTMLInputElement && e.target.type === 'checkbox')) {
+            setDirty(true);
+            setForm((f) => ({ ...f, enabled: false, verified_at: null }));
+          }
+        }}
         onSubmit={async (e) => {
           e.preventDefault();
+          setBusy(true);
           try {
             await api('/notifications', csrf, 'PUT', {
               security: form.security || 'tls',
@@ -823,80 +834,125 @@ export function MailConfiguration({ csrf, accountEmail }: { csrf: string; accoun
               recipient: form.recipient,
               password: form.password || null,
             });
-            setForm((f) => ({ ...f, password: '' }));
+            setForm(await api<Mail>('/notifications'));
+            setDirty(false);
             setMessage(
-              'Configuración guardada. Los próximos incidentes utilizarán este canal si está activado.',
+              form.enabled
+                ? 'Avisos por correo activados.'
+                : 'Configuración guardada. Comprueba el correo antes de activar los avisos.',
             );
           } catch (e) {
             setMessage((e as Error).message);
+          } finally {
+            setBusy(false);
           }
         }}
       >
-        <label>
-          <input
-            type="checkbox"
-            checked={form.enabled}
-            onChange={(e) => setForm({ ...form, enabled: e.target.checked })}
-          />{' '}
-          Activar avisos por email
-        </label>
-        {(['host', 'username', 'sender', 'recipient'] as const).map((key) => (
-          <label key={key}>
-            {
-              {
-                host: 'Servidor SMTP',
-                username: 'Usuario SMTP',
-                sender: 'Email de sistema (remitente)',
-                recipient: 'Destinatario',
-              }[key]
-            }
+        <fieldset disabled={busy || !ready} style={{ border: 0, padding: 0, display: 'contents' }}>
+          <label>
             <input
-              type={key === 'sender' || key === 'recipient' ? 'email' : 'text'}
-              value={form[key]}
-              onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+              type="checkbox"
+              disabled={dirty || !form.verified_at}
+              checked={form.enabled}
+              onChange={(e) => setForm({ ...form, enabled: e.target.checked })}
+            />{' '}
+            Activar avisos por email
+          </label>
+          {(['host', 'username', 'sender', 'recipient'] as const).map((key) => (
+            <label key={key}>
+              {
+                {
+                  host: 'Servidor SMTP',
+                  username: 'Usuario SMTP',
+                  sender: 'Email de sistema (remitente)',
+                  recipient: 'Destinatario',
+                }[key]
+              }
+              <input
+                type={key === 'sender' || key === 'recipient' ? 'email' : 'text'}
+                value={form[key]}
+                onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+              />
+            </label>
+          ))}
+          <label>
+            Seguridad SMTP
+            <select
+              value={form.security || 'tls'}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  security: e.target.value as 'tls' | 'starttls',
+                  port: e.target.value === 'tls' ? 465 : 587,
+                })
+              }
+            >
+              <option value="tls">TLS directo (465)</option>
+              <option value="starttls">STARTTLS obligatorio (587)</option>
+            </select>
+          </label>
+          <label>
+            Puerto TLS
+            <input
+              type="number"
+              min={1}
+              max={65535}
+              value={form.port}
+              onChange={(e) => setForm({ ...form, port: Number(e.target.value) })}
             />
           </label>
-        ))}
-        <label>
-          Seguridad SMTP
-          <select
-            value={form.security || 'tls'}
-            onChange={(e) =>
-              setForm({
-                ...form,
-                security: e.target.value as 'tls' | 'starttls',
-                port: e.target.value === 'tls' ? 465 : 587,
-              })
-            }
+          <label>
+            Contraseña SMTP
+            <input
+              type="password"
+              autoComplete="new-password"
+              value={form.password || ''}
+              placeholder={form.has_password ? 'Guardada; deja vacío para conservarla' : ''}
+              onChange={(e) => setForm({ ...form, password: e.target.value })}
+            />
+          </label>
+          <button className="primary" disabled={!ready || busy}>
+            {busy ? 'Procesando…' : 'Guardar correo'}
+          </button>
+          <button
+            type="button"
+            className="secondary"
+            disabled={!ready || busy || dirty}
+            onClick={async () => {
+              setBusy(true);
+              setMessage('Comprobando conexión y enviando un correo de prueba…');
+              try {
+                const result = await api<{ ok: boolean; message: string }>(
+                  '/notifications/test',
+                  csrf,
+                  'POST',
+                  {},
+                );
+                setMessage(result.message);
+                setForm(await api<Mail>('/notifications'));
+              } catch (error) {
+                setMessage((error as Error).message);
+              } finally {
+                setBusy(false);
+              }
+            }}
           >
-            <option value="tls">TLS directo (465)</option>
-            <option value="starttls">STARTTLS obligatorio (587)</option>
-          </select>
-        </label>
-        <label>
-          Puerto TLS
-          <input
-            type="number"
-            min={1}
-            max={65535}
-            value={form.port}
-            onChange={(e) => setForm({ ...form, port: Number(e.target.value) })}
-          />
-        </label>
-        <label>
-          Contraseña SMTP
-          <input
-            type="password"
-            autoComplete="new-password"
-            value={form.password || ''}
-            placeholder={form.has_password ? 'Guardada; deja vacío para conservarla' : ''}
-            onChange={(e) => setForm({ ...form, password: e.target.value })}
-          />
-        </label>
-        <button className="primary" disabled={!ready}>
-          Guardar correo
-        </button>
+            Comprobar y enviar prueba
+          </button>
+        </fieldset>
       </form>
+      <p>
+        1. Guarda los datos. 2. Envía una prueba y comprueba tu bandeja. 3. Activa los avisos y
+        guarda. Máximo una prueba cada cinco minutos y tres por hora. Cualquier fallo de envío
+        suspende el canal.
+      </p>
+      {form.last_error && <p role="alert">{form.last_error}</p>}
+      {form.verified_at && (
+        <p>
+          Última comprobación correcta: {date(form.verified_at)}.{' '}
+          {form.enabled ? 'Avisos activados.' : 'Avisos desactivados.'}
+        </p>
+      )}
       {message && <p role="status">{message}</p>}
       <h3>Últimas entregas</h3>
       {form.deliveries?.length ? (

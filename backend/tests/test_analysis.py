@@ -274,7 +274,7 @@ def test_correlate_excludes_stale_and_separates_servers():
 
 def test_notifications_private_encrypted_and_csrf(logged_in):
     payload = dict(
-        enabled=True,
+        enabled=False,
         host="smtp.example.test",
         sender="monitor@example.test",
         recipient="admin@example.test",
@@ -317,7 +317,7 @@ def test_mail_cooldown_and_failure_never_retries(monkeypatch):
                 id=1,
                 encrypted=get_settings()
                 .cipher()
-                .encrypt(json.dumps({"enabled": True}).encode())
+                .encrypt(json.dumps({"enabled": True, "verified_at": now().isoformat()}).encode())
                 .decode(),
             )
         )
@@ -327,6 +327,7 @@ def test_mail_cooldown_and_failure_never_retries(monkeypatch):
         enqueue(db, incident, "reminder", now() + timedelta(minutes=5))
         db.flush()
         assert db.scalar(select(func.count()).select_from(EmailDelivery)) == 1
+        db.add(EmailDelivery(incident_id=incident.id, transition="escalated", created_at=now()))
         db.commit()
     calls = []
 
@@ -339,9 +340,11 @@ def test_mail_cooldown_and_failure_never_retries(monkeypatch):
     notifications.deliver()
     assert len(calls) == 1
     with session_factory()() as db:
-        item = db.scalar(select(EmailDelivery))
-        assert item.status == "uncertain"
-        assert "secret" not in item.error
+        items = db.scalars(select(EmailDelivery)).all()
+        assert sorted(item.status for item in items) == ["suppressed", "uncertain"]
+        assert all("secret" not in (item.error or "") for item in items)
+        assert notifications.configuration(db)["enabled"] is False
+        assert notifications.configuration(db)["verified_at"] is None
 
 
 def test_mrtg_pressure_detected_when_apache_is_incomplete():

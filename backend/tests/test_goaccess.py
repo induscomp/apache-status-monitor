@@ -216,7 +216,14 @@ def test_starttls_precedes_credentials_and_has_no_plaintext_fallback(monkeypatch
             if fail_tls:
                 raise RuntimeError("TLS unavailable")
 
-        def login(self, *args):
+        esmtp_features = {"auth": "PLAIN LOGIN"}
+        auth_plain = None
+
+        def ehlo_or_helo_if_needed(self):
+            pass
+
+        def auth(self, method, callback):
+            assert method == "PLAIN"
             calls.append("login")
 
         def send_message(self, message):
