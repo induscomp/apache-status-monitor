@@ -414,6 +414,12 @@ export function ServerOverview({
               configure={configure}
             />
           )}
+          {data.warnings.some((w) => w.startsWith('HTTP/2 detectado:')) && (
+            <p className="monitor-footnote">
+              HTTP/2 · La actividad por dominio/IP refleja el scoreboard; puede haber más peticiones
+              simultáneas. Comprueba también los recursos de MRTG.
+            </p>
+          )}
           <div className={`overview-status ${data.state} ${data.priority || ''}`}>
             <h2>{states[data.state]}</h2>
             <p>

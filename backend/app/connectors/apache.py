@@ -2,6 +2,7 @@
 
 import ipaddress
 import math
+import re
 from collections import Counter
 from html.parser import HTMLParser
 from urllib.parse import urlsplit
@@ -67,6 +68,12 @@ def parse_auto(body: str) -> dict:
         "Load15",
         "DurationPerReq",
         "TotalDuration",
+        "GracefulWorkers",
+        "ConnsTotal",
+        "ConnsAsyncWriting",
+        "ConnsAsyncKeepAlive",
+        "ConnsAsyncClosing",
+        "ConnsAsyncWaitIO",
     }
     result = {}
     for line in body.splitlines():
@@ -118,8 +125,14 @@ def parse_html(body: str) -> dict:
         except ValueError:
             client = None
         request = data.get("Request", "").split()
+        protocol = data.get("Protocol", "").strip().lower() or None
+        session = bool(request and re.fullmatch(r"\[\d+/\d+\]", request[0]))
         method, path = None, None
-        if len(request) >= 2:
+        if (
+            len(request) >= 2
+            and not session
+            and re.fullmatch(r"[!#$%&'*+.^_`|~0-9A-Za-z-]+", request[0])
+        ):
             method = request[0][:20]
             try:
                 path = urlsplit(request[1]).path[:2048] or "/"
@@ -138,6 +151,8 @@ def parse_html(body: str) -> dict:
                 "domain": domain,
                 "method": method,
                 "path": path,
+                "protocol": protocol,
+                "request_kind": "h2_session" if session else "request" if method else "unavailable",
                 "seconds_since": number(data.get("SS")),
                 "request_ms": number(data.get("Req")),
                 "observation": "last_request" if data["M"] in {"_", ".", "I"} else "current",
@@ -152,6 +167,10 @@ def parse_html(body: str) -> dict:
         "workers": workers,
         "metrics": {
             "observed_workers": len(workers),
+            "http2_observed": any(
+                w["protocol"] in {"h2", "h2c"} or w["request_kind"] == "h2_session" for w in workers
+            ),
+            "protocols": dict(Counter(w["protocol"] for w in workers if w["protocol"])),
             "active_workers": sum(w["observation"] == "current" for w in workers),
             "states": dict(states),
             "idle_workers": states["_"],

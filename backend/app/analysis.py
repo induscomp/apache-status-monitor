@@ -340,6 +340,10 @@ def build_frame(db, observation):
                     g["Total Accesses"] - old["Total Accesses"]
                 )
     resources, warnings = correlate(db, service.server_id, observation.observed_at)
+    if observation.metrics.get("http2_observed"):
+        warnings.append(
+            "HTTP/2 detectado: los rankings muestran actividad visible del scoreboard, no todas las peticiones ni streams simultáneos. Pocos workers ocupados no descartan presión de recursos; consulta también MRTG."
+        )
     valid = (
         observation.status != "error"
         and observation.workers is not None

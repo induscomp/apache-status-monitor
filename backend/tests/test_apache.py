@@ -167,3 +167,126 @@ def test_legend_tables_are_not_reported_as_partial_workers():
     result = parse_html(body)
     assert not result["warnings"]
     assert result["metrics"]["observed_workers"] == 2
+
+
+def test_http2_protocol_column_and_session_markers_are_not_urls():
+    from html import escape
+
+    from app.analysis import rankings
+
+    headers = [
+        "Srv",
+        "PID",
+        "Acc",
+        "M",
+        "CPU",
+        "SS",
+        "Req",
+        "Dur",
+        "Conn",
+        "Child",
+        "Slot",
+        "Client",
+        "Protocol",
+        "VHost",
+        "Request",
+    ]
+    rows = [
+        [
+            "1-17",
+            "123",
+            "0/0/100",
+            "W",
+            "0",
+            "1",
+            "2",
+            "50",
+            "0",
+            "0",
+            "0",
+            "2001:db8::1",
+            "h2",
+            "example.test:443",
+            "[1/0] write: stream 1, GET /private?token=secret",
+        ],
+        [
+            "2-17",
+            "123",
+            "0/0/100",
+            "_",
+            "0",
+            "1",
+            "2",
+            "50",
+            "0",
+            "0",
+            "0",
+            "192.0.2.1",
+            "h2",
+            "example.test:443",
+            "[0/0] init",
+        ],
+        [
+            "3-17",
+            "123",
+            "0/0/100",
+            "W",
+            "0",
+            "1",
+            "2",
+            "50",
+            "0",
+            "0",
+            "0",
+            "192.0.2.2",
+            "h2",
+            "example.test:443",
+            "POST /wp-login.php?token=secret HTTP/2.0",
+        ],
+        [
+            "4-17",
+            "-",
+            "0/0/100",
+            ".",
+            "0",
+            "1",
+            "2",
+            "50",
+            "0",
+            "0",
+            "0",
+            "192.0.2.3",
+            "http/1.1",
+            "old.test:80",
+            "GET /old HTTP/1.1",
+        ],
+    ]
+    body = "<html><table><tr><th>Slot</th><th>PID</th><th>Connections</th></tr><tr><td>1</td><td>123</td><td>4</td></tr></table><table>"
+    for row in [headers, *rows]:
+        body += "<tr>" + "".join("<td>" + escape(cell) + "</td>" for cell in row) + "</tr>"
+    result = parse_html(body + "</table></html>")
+    assert not result["warnings"]
+    assert result["metrics"]["http2_observed"] is True
+    assert result["metrics"]["protocols"] == {"h2": 3, "http/1.1": 1}
+    assert len(result["workers"]) == 4
+    assert result["workers"][0]["request_kind"] == "h2_session"
+    assert result["workers"][0]["method"] is None
+    assert result["workers"][0]["path"] is None
+    assert result["workers"][2]["path"] == "/wp-login.php"
+    assert result["workers"][3]["observation"] == "last_request"
+    domains, details = rankings(result["workers"])
+    assert "old.test" not in domains
+    assert domains["example.test"]["active"] == 2
+    assert [r["path"] for r in details["urls"]] == ["/wp-login.php"]
+    assert len(details["posts"]) == 1
+    assert "secret" not in str(result)
+
+
+def test_event_async_connections_are_separate_from_worker_requests():
+    data = parse_auto(
+        "BusyWorkers: 2\nIdleWorkers: 248\nGracefulWorkers: 0\nConnsTotal: 10\nConnsAsyncWriting: 1\nConnsAsyncKeepAlive: 2\nConnsAsyncClosing: 4\nScoreboard: W_W_.."
+    )
+    assert data["ConnsTotal"] == 10
+    assert data["BusyWorkers"] == 2
+    assert data["ActiveRequests"] == 2
+    assert data["ConnsAsyncKeepAlive"] == 2
