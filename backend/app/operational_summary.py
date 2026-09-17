@@ -301,6 +301,9 @@ def build_monitors(db, server_id, start, end, incidents, truncated=False):
                 ranking=domain_ranking(frames, apache, start, end) if key == "domains" else [],
             )
         )
+    from app.performance import monitor
+
+    rows.append(monitor(start, end, frames, incidents, complete_now))
     return rows
 
 

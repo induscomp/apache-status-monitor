@@ -273,6 +273,15 @@ test('administrator configures independent services, persists changes and revoke
   await page.keyboard.press('Escape');
   await expect(page.getByRole('tooltip')).toHaveCount(0);
   await page.getByRole('button', { name: 'Gráficos y rankings', exact: true }).click();
+  await expect(
+    page.getByRole('heading', {
+      name: 'Latencia global publicada y entre muestras · ms',
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Distribución del scoreboard', exact: true }),
+  ).toBeVisible();
   await page.getByRole('button', { name: 'example.test', exact: true }).first().click();
   await expect(page.getByRole('heading', { name: 'Histórico de example.test' })).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });

@@ -35,7 +35,9 @@ def rankings(workers):
     domains = {}
     ips, urls, posts = Counter(), Counter(), Counter()
     for worker in workers:
-        if worker["state"] in {".", "I", "S"}:
+        from app.performance import internal
+
+        if internal(worker) or worker["state"] in {".", "I", "S"}:
             continue
         domain = worker.get("domain")
         active = worker.get("observation") == "current" and bool(worker.get("client"))
@@ -47,7 +49,7 @@ def rankings(workers):
             ips[worker["client"]] += 1
         path = worker.get("path")
         method = (worker.get("method") or "").upper()
-        if path:
+        if path and not method.startswith("["):
             urls[(domain, method, path)] += 1
             if method == "POST" and SENSITIVE.search(unquote(path)):
                 posts[(domain, worker.get("client"), path)] += 1
@@ -288,10 +290,20 @@ def build_frame(db, observation):
     service = db.get(Service, observation.service_id)
     domains, details = rankings(observation.workers or [])
     g = apache_globals(observation)
+    from app.performance import internal, sample_metrics
+
     metrics = {
+        **sample_metrics(observation.workers or [], domains),
+        "busy_workers": g.get("BusyWorkers"),
+        **{
+            f"state_{ {'.': 'dot', '_': 'idle'}.get(s, s) }": g[f"State_{s}"]
+            for s in "WRKC_."
+            if f"State_{s}" in g
+        },
         "active_connections": sum(
             w.get("observation") == "current"
             and bool(w.get("client"))
+            and not internal(w)
             and w["state"] not in {".", "I", "S"}
             for w in (observation.workers or [])
         ),

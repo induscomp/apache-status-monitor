@@ -198,6 +198,10 @@ def server_state(
                     {
                         "domain_active": frame.domains.get(domain, {}).get("active", 0),
                         "domain_appearances": frame.domains.get(domain, {}).get("appearances", 0),
+                        **{
+                            f"domain_{key}": frame.domains.get(domain, {}).get(key)
+                            for key in ("req_count", "req_mean", "req_max", "req_p95")
+                        },
                     }
                     if domain and frame.valid
                     else {}
@@ -228,6 +232,19 @@ def server_state(
         "series": series if chosen else mrtg_only_series(db, server.id, hours),
         "resources": presentation.resources(last.resources if last else independent_resources),
         "metrics": last.metrics if last else {},
+        "slow_domains": sorted(
+            [
+                dict(domain=d, **v)
+                for d, v in (
+                    last.domains
+                    if last and last.valid and now() - last.observed_at <= timedelta(minutes=10)
+                    else {}
+                ).items()
+                if v.get("req_count", 0) > 0
+            ],
+            key=lambda v: v.get("req_mean") or 0,
+            reverse=True,
+        )[:30],
         "period_rankings": [
             {"domain": d, "appearances": n}
             for d, n in sorted(totals.items(), key=lambda item: item[1], reverse=True)[:100]

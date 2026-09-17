@@ -83,6 +83,7 @@ def parse_auto(body: str) -> dict:
         if sep and key == "Scoreboard":
             counts = Counter(value.strip())
             result.update(
+                **{f"State_{state}": counts[state] for state in "WRKC_."},
                 FreeSlots=counts["."],
                 ScoreboardIdle=counts["_"],
                 ActiveRequests=counts["R"] + counts["W"],
@@ -152,6 +153,10 @@ def parse_html(body: str) -> dict:
                 "method": method,
                 "path": path,
                 "protocol": protocol,
+                "request_protocol": request[2]
+                if len(request) == 3 and request[2].startswith("HTTP/")
+                else None,
+                "internal": client == "93.93.68.189" and request == ["OPTIONS", "*", "HTTP/1.0"],
                 "request_kind": "h2_session" if session else "request" if method else "unavailable",
                 "seconds_since": number(data.get("SS")),
                 "request_ms": number(data.get("Req")),

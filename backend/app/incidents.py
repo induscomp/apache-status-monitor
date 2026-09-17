@@ -57,6 +57,8 @@ def transition(db, frame, subject, kind, value, reference, bad, evidence):
         if kind == "resources" or value >= max(1, reference["median"]) * 10
         else "warning"
     )
+    if kind == "performance":
+        severity = "warning"
     memory = kind == "resources" and subject in {"resource:ram_free", "resource:swap_free"}
     if memory:
         severity, swap_state = memory_severity(evidence.get("resources", {}))
@@ -204,6 +206,9 @@ def evaluate(db, frame):
             "note": "Actividad observada; no tráfico total ni causalidad demostrada.",
         }
         transition(db, frame, subject, "domain", value, reference, bad, evidence)
+    from app.performance import evaluate as evaluate_performance
+
+    evaluate_performance(db, frame, history, open_incidents, settings)
     previous = db.scalar(
         select(ServerFrame)
         .where(

@@ -57,7 +57,16 @@ type Overview = {
   series: Record<string, number | string | null>[];
   metrics: Record<string, number | null>;
   resources: Record<string, Resource>;
-  domains: { domain: string; active: number; appearances: number }[];
+  domains: {
+    domain: string;
+    active: number;
+    appearances: number;
+    req_count?: number;
+    req_mean?: number | null;
+    req_max?: number | null;
+    req_p95?: number | null;
+  }[];
+  slow_domains?: Overview['domains'];
   period_rankings: { domain: string; appearances: number }[];
   rankings: Rankings;
   warnings: string[];
@@ -83,6 +92,7 @@ type Incident = {
     reference: { median: number; mad: number; samples: number };
     note: string;
     feature: string;
+    performance_context?: { apparently_available: boolean; reason: string };
     swap_state?: string;
     severity_policy?: string;
     resources: Record<string, Resource>;
@@ -473,6 +483,7 @@ export function ServerOverview({
                       i.evidence.resources?.[i.evidence.feature]?.display_factor,
                     )}
                   </p>
+                  {i.evidence.performance_context && <p>{i.evidence.performance_context.reason}</p>}
                   {i.progress && (
                     <p>
                       {i.progress.phase === 'recovering'
@@ -611,6 +622,9 @@ export function ServerOverview({
                     {[
                       ['active_connections', 'Workers con conexión observada'],
                       ['active_requests', 'Requests activas R/W'],
+                      ['busy_workers', 'BusyWorkers'],
+                      ['request_ms_reported', 'ms/request global publicado'],
+                      ['internal_workers', 'Sondas internas (excluidas de clientes)'],
                       ['idle_workers', 'Workers idle'],
                       ['free_slots', 'Slots libres'],
                       ['req_per_sec', 'Req/s entre muestras'],
@@ -623,7 +637,99 @@ export function ServerOverview({
                       </section>
                     ))}
                   </div>
+                  <section className="overview-card">
+                    <h3>Dominios con Req observado más alto · última captura</h3>
+                    <p>
+                      Req es el tiempo publicado por el worker, no una medida de latencia final.
+                      Solo filas R/W de clientes; p95 requiere 20 valores en la captura. Pulsa un
+                      dominio para ver su evolución.
+                    </p>
+                    <div className="table-scroll">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Dominio</th>
+                            <th>Conexiones</th>
+                            <th>Muestras Req</th>
+                            <th>Media ms</th>
+                            <th>Máximo ms</th>
+                            <th>p95 ms</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {[...(data.slow_domains ?? data.domains)]
+                            .filter((d) => (d.req_count ?? 0) > 0)
+                            .sort((a, b) => (b.req_mean ?? 0) - (a.req_mean ?? 0))
+                            .slice(0, 30)
+                            .map((d) => (
+                              <tr key={d.domain}>
+                                <td>
+                                  <button className="secondary" onClick={() => setDomain(d.domain)}>
+                                    {d.domain}
+                                  </button>
+                                </td>
+                                <td>{d.active}</td>
+                                <td>{d.req_count}</td>
+                                <td>{number(d.req_mean)}</td>
+                                <td>{number(d.req_max)}</td>
+                                <td>
+                                  {d.req_p95 == null ? 'Muestra insuficiente' : number(d.req_p95)}
+                                </td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
                   <div className="overview-grid">
+                    <Chart
+                      title="Latencia global publicada y entre muestras · ms"
+                      data={data.series}
+                      lines={[
+                        ['request_ms_reported', 'Global desde reinicio'],
+                        ['request_ms', 'Entre muestras'],
+                      ]}
+                    />
+                    <Chart
+                      title="Req observado en workers R/W · ms"
+                      data={data.series}
+                      lines={[
+                        ['active_req_mean', 'Media'],
+                        ['active_req_max', 'Máximo'],
+                        ['active_req_p95', 'p95 (≥20)'],
+                      ]}
+                    />
+                    {domain && (
+                      <Chart
+                        title={`Req observado · ${domain} · ms`}
+                        data={data.series}
+                        lines={[
+                          ['domain_req_mean', 'Media'],
+                          ['domain_req_max', 'Máximo'],
+                          ['domain_req_p95', 'p95 (≥20)'],
+                        ]}
+                      />
+                    )}
+                    <Chart
+                      title="Distribución del scoreboard"
+                      data={data.series}
+                      lines={[
+                        ['state_W', 'W'],
+                        ['state_R', 'R'],
+                        ['state_K', 'K'],
+                        ['state_C', 'C'],
+                        ['state_idle', '_'],
+                        ['state_dot', '.'],
+                      ]}
+                    />
+                    <Chart
+                      title="BusyWorkers / IdleWorkers"
+                      data={data.series}
+                      lines={[
+                        ['busy_workers', 'Busy'],
+                        ['idle_workers', 'Idle'],
+                      ]}
+                    />
                     <Chart
                       title="Apache: actividad observada"
                       data={data.series}
@@ -662,7 +768,10 @@ export function ServerOverview({
                         <Chart
                           title="Peticiones por segundo entre muestras"
                           data={data.series}
-                          lines={[['req_per_sec', 'Req/s']]}
+                          lines={[
+                            ['req_per_sec', 'Entre muestras'],
+                            ['req_per_sec_reported', 'Global publicado'],
+                          ]}
                         />
                         <Chart
                           title="Tráfico entre muestras (bytes/s)"

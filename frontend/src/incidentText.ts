@@ -17,9 +17,13 @@ export function memory(bytes: number): string {
   return `${numeric(bytes / 1000 ** index)} ${units[index]}`;
 }
 export const subjectText = (subject: string) =>
-  subject.startsWith('resource:')
-    ? resourceLabels[subject.slice(9)] || subject.slice(9)
-    : `Dominio: ${subject.replace('domain:', '')}`;
+  subject.startsWith('latency:')
+    ? subject === 'latency:server'
+      ? 'Latencia global'
+      : `Latencia de ${subject.replace('latency:domain:', '')}`
+    : subject.startsWith('resource:')
+      ? resourceLabels[subject.slice(9)] || subject.slice(9)
+      : `Dominio: ${subject.replace('domain:', '')}`;
 export function incidentExplanation(
   subject: string,
   feature: string,
@@ -29,6 +33,8 @@ export function incidentExplanation(
 ) {
   const fmt = (n: number | undefined) =>
     n == null ? 'sin referencia' : factor ? memory(n * factor) : numeric(n);
+  if (subject.startsWith('latency:'))
+    return `${subjectText(subject)} (${({ req_mean: 'media Req', req_max: 'máximo Req', req_p95: 'p95 Req', request_ms: 'media entre muestras' } as Record<string, string>)[feature] || feature}): ${fmt(value)} ms observados frente a ${fmt(median)} ms habituales. Desviación de rendimiento; no demuestra ataque ni causa.`;
   if (subject.startsWith('domain:')) {
     const observed =
       feature === 'active' ? 'conexiones activas observadas' : 'apariciones en la tabla Apache';

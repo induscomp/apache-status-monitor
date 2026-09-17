@@ -6,6 +6,16 @@ test('server monitors show resources and activity instead of collection sources'
   const at = new Date().toISOString();
   const rows = [
     {
+      id: 'latency',
+      name: 'Latencia / tiempo de respuesta',
+      state: 'learning',
+      status_text: 'Aprendiendo latencia',
+      display_bytes: null,
+      value: 150,
+      unit: 'ms',
+      value_label: 'media global entre muestras',
+    },
+    {
       id: 'ram_free',
       name: 'Memoria RAM',
       state: 'warning',
@@ -162,8 +172,11 @@ test('server monitors show resources and activity instead of collection sources'
   await page.goto('/');
   await page.getByRole('button', { name: 'Ver servidor Servidor de prueba', exact: true }).click();
   const panel = page.getByRole('region', { name: 'Estado de los indicadores del servidor' });
-  await expect(panel.getByRole('article')).toHaveCount(6);
-  await expect(panel.getByRole('status')).toContainText('Recibiendo datos · 6/6');
+  await expect(panel.getByRole('article')).toHaveCount(7);
+  await expect(
+    panel.getByRole('article', { name: 'Latencia / tiempo de respuesta' }),
+  ).toContainText('150 ms');
+  await expect(panel.getByRole('status')).toContainText('Recibiendo datos · 7/7');
   await expect(panel.getByText('example.test', { exact: true })).toBeVisible();
   await expect(panel.getByRole('img', { name: /Evolución de example.test/ })).toBeVisible();
   await expect(panel).not.toContainText('GoAccess');

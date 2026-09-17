@@ -594,3 +594,9 @@
     display: none;
   }
 }
+
+.server-overview .table-scroll {
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+}

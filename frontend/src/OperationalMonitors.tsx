@@ -168,7 +168,7 @@ export function OperationalMonitors({
               <div className="monitor-actions">
                 {showCharts && (
                   <button className="secondary" onClick={showCharts}>
-                    {row.action === 'resources'
+                    {['resources', 'latency'].includes(row.action)
                       ? 'Abrir gráficos de recursos'
                       : 'Abrir rankings de actividad'}
                   </button>

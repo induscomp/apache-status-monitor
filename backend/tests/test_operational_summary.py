@@ -72,7 +72,7 @@ def test_resource_monitors_do_not_inherit_other_source_or_resource_alerts(monkey
                 db, svc.server_id, stamp - timedelta(hours=24), stamp, [incident]
             )
         }
-        assert set(rows) == {"ram_free", "swap_free", "cpu", "load", "domains", "ips"}
+        assert set(rows) == {"ram_free", "swap_free", "cpu", "load", "domains", "ips", "latency"}
         assert rows["ram_free"]["state"] == "warning"
         assert rows["ram_free"]["display_bytes"] == 20
         assert rows["swap_free"]["state"] == "observed"
