@@ -140,8 +140,8 @@ def build_monitors(db, server_id, start, end, incidents, truncated=False):
             if point.get("source_at") is None and state in {"observed", "learning"}:
                 state, status, reason = (
                     "unknown",
-                    "Fecha por verificar",
-                    "La recogida es reciente, pero la zona horaria de MRTG no permite verificar la antigüedad de origen.",
+                    "Datos recibidos · fecha sin validar",
+                    "La descarga funciona, pero falta una fecha de origen interpretable o su zona horaria. Revisa la configuración de la métrica MRTG.",
                 )
         if opened:
             state = "critical" if any(i.severity == "critical" for i in opened) else "warning"
@@ -228,6 +228,21 @@ def build_monitors(db, server_id, start, end, incidents, truncated=False):
             else ("unknown", "Cobertura insuficiente")
         )
         reason = "Cada dominio se compara con su propio histórico de 24 horas, dentro de su servicio Apache."
+        if key == "domains" and complete_now and not learned:
+            available = min(
+                (
+                    len(
+                        {
+                            int(f.observed_at.timestamp()) // 300
+                            for f in history
+                            if f.service_id == sid
+                        }
+                    )
+                    for sid in apache
+                ),
+                default=0,
+            )
+            reason += f" La recogida funciona: hay {available} de 170 intervalos válidos necesarios por servicio en las últimas 24 horas, excluyendo los últimos 30 minutos. Los huecos no se rellenan; la referencia se recupera con nuevas lecturas."
         if key == "ips":
             # We have rankings, not an independent IP anomaly detector. Do not promise a green health check.
             state, status = (

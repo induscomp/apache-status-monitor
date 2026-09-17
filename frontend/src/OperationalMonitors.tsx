@@ -64,6 +64,13 @@ export function OperationalMonitors({
 }) {
   const [selection, setSelection] = useState<{ row: string; index: number } | null>(null);
   const rows = summary.monitors ?? [];
+  const referenceTime = new Date(summary.end).getTime();
+  const recentReadings = rows.filter(
+    (row) =>
+      row.latest_at &&
+      referenceTime - new Date(row.latest_at).getTime() >= 0 &&
+      referenceTime - new Date(row.latest_at).getTime() <= 600000,
+  );
   const attention = rows.filter((row) => ['warning', 'critical'].includes(row.state));
   const uncertain = rows.filter((row) => ['unknown', 'learning'].includes(row.state)).length;
   return (
@@ -77,7 +84,9 @@ export function OperationalMonitors({
           <p>
             {attention.length
               ? `${attention.length} ${attention.length === 1 ? 'indicador para revisar' : 'indicadores para revisar'}`
-              : 'Sin avisos en los indicadores evaluados'}{' '}
+              : uncertain
+                ? 'Evaluación todavía parcial'
+                : 'Sin avisos en los indicadores evaluados'}{' '}
             · {summary.open} {summary.open === 1 ? 'incidencia abierta' : 'incidencias abiertas'}
             {uncertain > 0 ? ` · ${uncertain} indicadores sin evaluación suficiente` : ''}
           </p>
@@ -86,6 +95,13 @@ export function OperationalMonitors({
           Ver incidentes
         </button>
       </div>
+      <p className="monitor-intro" role="status">
+        {recentReadings.length > 0
+          ? `Recibiendo datos · ${recentReadings.length}/${rows.length} indicadores con lecturas en los últimos 10 minutos.`
+          : 'Sin lecturas recientes en estos indicadores. Revisa el estado de las fuentes.'}
+        {uncertain > 0 &&
+          ' Recoger datos y disponer de histórico suficiente son estados distintos; abre Detalle para ver qué falta.'}
+      </p>
       <p className="monitor-intro">
         Recursos y actividad del servidor · ahora y últimas 24 horas. Las conexiones son capturas
         cada 5 minutos, no el total de visitas.

@@ -163,6 +163,7 @@ test('server monitors show resources and activity instead of collection sources'
   await page.getByRole('button', { name: 'Ver servidor Servidor de prueba', exact: true }).click();
   const panel = page.getByRole('region', { name: 'Estado de los indicadores del servidor' });
   await expect(panel.getByRole('article')).toHaveCount(6);
+  await expect(panel.getByRole('status')).toContainText('Recibiendo datos · 6/6');
   await expect(panel.getByText('example.test', { exact: true })).toBeVisible();
   await expect(panel.getByRole('img', { name: /Evolución de example.test/ })).toBeVisible();
   await expect(panel).not.toContainText('GoAccess');
