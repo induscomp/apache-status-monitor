@@ -367,6 +367,9 @@ test('administrator configures independent services, persists changes and revoke
         channel: 'in',
         statistic: 'current',
         value: 500,
+        display_value: 500,
+        display_unit: 'B/s',
+        display_label: 'Carga Sistema',
         source: 'comment',
         source_unit: null,
       },
@@ -419,6 +422,9 @@ test('administrator configures independent services, persists changes and revoke
     .click();
   const mrtgDialog = page.getByRole('dialog');
   await expect(mrtgDialog.getByText('500', { exact: true })).toBeVisible();
+  await expect(mrtgDialog.getByText('500 B/s', { exact: true })).toBeVisible();
+  await expect(mrtgDialog.getByText('Carga Sistema', { exact: true })).toBeVisible();
+  await expect(mrtgDialog.getByText('Datos leídos correctamente.', { exact: false })).toBeVisible();
   await mrtgDialog.getByLabel('Ventana MRTG').selectOption('w');
   await expect(mrtgDialog.getByText('300', { exact: true })).toBeVisible();
   await expect(mrtgDialog.getByText('500', { exact: true })).toHaveCount(0);

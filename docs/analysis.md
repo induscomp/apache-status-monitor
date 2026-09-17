@@ -109,3 +109,7 @@ El panel indica la cobertura limitada cuando detecta HTTP/2: los rankings descri
 ## Recogida y evaluación son estados distintos
 
 El resumen indica cuántos indicadores tienen lecturas de los últimos diez minutos. Esto acredita lecturas recientes para esos indicadores, no que todas las fuentes estén completas ni que el servidor esté sano. «Aprendiendo» explica la cobertura histórica pendiente tras huecos; no significa que el recolector esté parado. MRTG requiere una zona horaria configurada por métrica para validar las fechas de sus páginas. Una descarga reciente con fecha de origen sin interpretar permanece diferenciada de un dato fresco verificado. Cambiar la zona horaria crea una nueva revisión: las muestras antiguas no se reescriben ni se pintan retroactivamente como correctas.
+
+## Contrastar unidades MRTG
+
+El diagnóstico muestra juntos el valor extraído o convertido y el valor/etiqueta de la tabla pública, además del nombre del canal. Así pueden contrastarse los comentarios exactos con los valores redondeados visibles. Una etiqueta de origen no se considera automáticamente una unidad verificada: por ejemplo, una página de carga puede conservar «B/s». La falta de interpretación se presenta como una aclaración, no como un error de descarga. Las conversiones configuradas mantienen el valor original y su factor visibles; las estadísticas sin equivalente en la tabla se identifican como tales.

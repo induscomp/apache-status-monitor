@@ -16,6 +16,10 @@ type Point = {
   value: number;
   source: string;
   source_unit: string | null;
+  display_value?: number;
+  display_unit?: string;
+  display_label?: string;
+  label?: string;
   normalized_value?: number;
   unit?: string;
 };
@@ -289,8 +293,13 @@ export function MrtgDiagnostics({ serviceId, csrf }: { serviceId: string; csrf: 
                     . Revisión de métrica: {sample.metric_revision}.
                   </p>
                   {sample.warnings.map((w) => (
-                    <p className="error" key={w}>
-                      {w}
+                    <p
+                      className={w.startsWith('Semántica pendiente') ? 'monitor-footnote' : 'error'}
+                      key={w}
+                    >
+                      {w.startsWith('Semántica pendiente')
+                        ? 'Datos leídos correctamente. Falta confirmar la unidad y escala; puedes contrastar el número original con la tabla pública que mostramos debajo.'
+                        : w}
                     </p>
                   ))}
                   <label>
@@ -309,8 +318,9 @@ export function MrtgDiagnostics({ serviceId, csrf }: { serviceId: string; csrf: 
                         <tr>
                           <th>Canal</th>
                           <th>Estadística</th>
-                          <th>Valor</th>
+                          <th>Valor extraído / convertido</th>
                           <th>Unidad / etiqueta</th>
+                          <th>Tabla pública MRTG</th>
                           <th>Procedencia</th>
                         </tr>
                       </thead>
@@ -319,7 +329,15 @@ export function MrtgDiagnostics({ serviceId, csrf }: { serviceId: string; csrf: 
                           .filter((p) => p.window === window)
                           .map((p) => (
                             <tr key={`${p.channel}-${p.statistic}`}>
-                              <td>{p.channel === 'in' ? 'Entrada' : 'Salida'}</td>
+                              <td>
+                                {p.channel === 'in' ? 'Entrada' : 'Salida'}
+                                {(p.display_label ||
+                                  (p.label && !['in', 'out'].includes(p.label))) && (
+                                  <small style={{ display: 'block' }}>
+                                    {p.display_label || p.label}
+                                  </small>
+                                )}
+                              </td>
                               <td>{statistics[p.statistic] ?? p.statistic}</td>
                               <td>
                                 {(p.normalized_value ?? p.value).toLocaleString(undefined, {
@@ -330,10 +348,23 @@ export function MrtgDiagnostics({ serviceId, csrf }: { serviceId: string; csrf: 
                                 {p.unit ??
                                   (p.source_unit
                                     ? `${p.source_unit} (etiqueta de origen sin verificar)`
-                                    : 'Sin interpretar')}
+                                    : 'Unidad pendiente de confirmar')}
+                              </td>
+                              <td>
+                                {p.display_value != null
+                                  ? `${p.display_value.toLocaleString(undefined, { maximumSignificantDigits: 10 })} ${p.display_unit || ''}`
+                                  : p.source === 'table'
+                                    ? `${p.value.toLocaleString()} ${p.source_unit || ''}`
+                                    : 'No publicada para esta estadística'}
                               </td>
                               <td>
                                 {p.source === 'comment' ? 'Comentario MRTG' : 'Tabla visible'}
+                                {p.normalized_value != null && (
+                                  <small style={{ display: 'block' }}>
+                                    Original: {p.value.toLocaleString()} · factor{' '}
+                                    {sample.configuration.factor ?? 1}
+                                  </small>
+                                )}
                               </td>
                             </tr>
                           ))}
@@ -341,8 +372,11 @@ export function MrtgDiagnostics({ serviceId, csrf }: { serviceId: string; csrf: 
                     </table>
                   </div>
                   <p>
-                    Las ventanas son resúmenes de MRTG distintos. El valor «actual» semanal o anual
-                    no equivale a una lectura instantánea.
+                    La columna «Tabla pública MRTG» reproduce su etiqueta, no confirma su
+                    significado: algunas páginas conservan unidades heredadas como B/s para carga.
+                    CPU puede publicar porcentajes superiores a 100; no se normalizan sin conocer su
+                    base. Las ventanas son resúmenes de MRTG distintos. El valor «actual» semanal o
+                    anual no equivale a una lectura instantánea.
                   </p>
                 </>
               )}
