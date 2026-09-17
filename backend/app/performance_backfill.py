@@ -29,10 +29,23 @@ def main():
             if not observation or observation.workers is None:
                 continue
             if frame.metrics.get("performance_version") == 1:
+                from app.threats import capture
+
+                if (frame.details or {}).get("security", {}).get("version") != 1:
+                    frame.details = {
+                        **(frame.details or {}),
+                        "security": capture(observation.workers),
+                    }
+                    count += 1
+                    if count % 100 == 0:
+                        db.commit()
+                        db.expire_all()
                 continue
             domains, details = rankings(observation.workers)
             frame.domains = domains
-            frame.details = details
+            from app.threats import capture
+
+            frame.details = {**details, "security": capture(observation.workers)}
             frame.metrics = {
                 **frame.metrics,
                 **sample_metrics(observation.workers, domains),

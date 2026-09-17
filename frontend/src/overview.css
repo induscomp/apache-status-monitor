@@ -600,3 +600,52 @@
   min-width: 0;
   overflow-x: auto;
 }
+
+.security-overview {
+  border: 1px solid #d5e1dc;
+  border-radius: 12px;
+  padding: 16px;
+  background: white;
+  margin: 14px 0;
+}
+.security-overview header {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.security-overview h2 {
+  font-size: 1.25rem;
+  margin: 0;
+}
+.security-overview h3 {
+  font-size: 1rem;
+  margin: 12px 0 4px;
+}
+.security-overview p {
+  margin: 6px 0;
+}
+.security-overview details {
+  margin-top: 8px;
+}
+.security-overview td,
+.security-overview th {
+  padding: 8px;
+  font-size: 0.85rem;
+}
+.security-overview td {
+  overflow-wrap: anywhere;
+}
+.security-overview select {
+  width: auto;
+  display: inline-block;
+}
+.security-label {
+  color: #17624b;
+}
+.security-label.watch {
+  color: #985000;
+}
+.security-label.danger {
+  color: #ae352b;
+}

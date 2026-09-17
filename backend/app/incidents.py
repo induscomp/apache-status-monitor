@@ -57,7 +57,7 @@ def transition(db, frame, subject, kind, value, reference, bad, evidence):
         if kind == "resources" or value >= max(1, reference["median"]) * 10
         else "warning"
     )
-    if kind == "performance":
+    if kind in {"performance", "security"}:
         severity = "warning"
     memory = kind == "resources" and subject in {"resource:ram_free", "resource:swap_free"}
     if memory:
@@ -209,6 +209,9 @@ def evaluate(db, frame):
     from app.performance import evaluate as evaluate_performance
 
     evaluate_performance(db, frame, history, open_incidents, settings)
+    from app.threats import evaluate as evaluate_security
+
+    evaluate_security(db, frame, settings)
     previous = db.scalar(
         select(ServerFrame)
         .where(

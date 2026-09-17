@@ -17,13 +17,15 @@ export function memory(bytes: number): string {
   return `${numeric(bytes / 1000 ** index)} ${units[index]}`;
 }
 export const subjectText = (subject: string) =>
-  subject.startsWith('latency:')
-    ? subject === 'latency:server'
-      ? 'Latencia global'
-      : `Latencia de ${subject.replace('latency:domain:', '')}`
-    : subject.startsWith('resource:')
-      ? resourceLabels[subject.slice(9)] || subject.slice(9)
-      : `Dominio: ${subject.replace('domain:', '')}`;
+  subject.startsWith('security:')
+    ? `Seguridad · ${subject.split(':').slice(2).join(':')}`
+    : subject.startsWith('latency:')
+      ? subject === 'latency:server'
+        ? 'Latencia global'
+        : `Latencia de ${subject.replace('latency:domain:', '')}`
+      : subject.startsWith('resource:')
+        ? resourceLabels[subject.slice(9)] || subject.slice(9)
+        : `Dominio: ${subject.replace('domain:', '')}`;
 export function incidentExplanation(
   subject: string,
   feature: string,

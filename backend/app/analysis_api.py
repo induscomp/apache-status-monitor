@@ -1,5 +1,5 @@
 import re
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Literal
 from uuid import UUID
 
@@ -105,7 +105,7 @@ def incident_progress(db, incident):
 def server_state(
     server_id: UUID,
     service_id: UUID | None = None,
-    hours: int = Query(24, ge=1, le=72),
+    hours: int = Query(24, ge=1, le=720),
     domain: str | None = Query(None, max_length=254),
     auth=Depends(authenticated),
     db: Session = Depends(get_db),
@@ -133,7 +133,7 @@ def server_state(
                 ServerFrame.observed_at >= now() - timedelta(hours=hours),
             )
             .order_by(ServerFrame.observed_at)
-            .limit(1000)
+            .limit(10000)
         ).all()
         if chosen
         else []
@@ -442,3 +442,158 @@ def test_mail(auth=Depends(authenticated), db: Session = Depends(get_db)):
     )
     db.commit()
     return {"ok": ok, "message": message}
+
+
+@router.get("/servers/{server_id}/security-analysis")
+def security_analysis(
+    server_id: UUID,
+    hours: int = Query(24, ge=1, le=720),
+    service_id: UUID | None = None,
+    auth=Depends(authenticated),
+    db: Session = Depends(get_db),
+):
+    from app.threats import assess, data, history
+
+    server = db.get(Server, str(server_id))
+    if not server:
+        raise HTTPException(404, "Servidor no encontrado.")
+    services = db.scalars(
+        select(Service).where(
+            Service.server_id == server.id,
+            Service.kind == "apache_status",
+            Service.enabled.is_(True),
+            Service.archived.is_(False),
+        )
+    ).all()
+    if service_id:
+        services = [s for s in services if s.id == str(service_id)]
+        if not services:
+            raise HTTPException(404, "Servicio Apache no encontrado.")
+    items, series, endpoints, period_ips, period_domains = [], [], {}, {}, {}
+    presentation = ResourcePresentation(db)
+    for svc in services:
+        last = db.scalar(
+            select(ServerFrame)
+            .where(ServerFrame.service_id == svc.id)
+            .order_by(ServerFrame.observed_at.desc())
+            .limit(1)
+        )
+        if not last:
+            continue
+        rows = history(db, last)
+        fresh = (
+            last.valid
+            and last.revision == svc.revision
+            and now() - last.observed_at <= timedelta(minutes=10)
+            and bool(data(last))
+        )
+        assessment = (
+            assess(last, rows, settings_for(server))
+            if fresh
+            else dict(ips=[], domains=[], degradation=[], contributors=[], samples=0)
+        )
+        displayed = presentation.resources(last.resources)
+        for signal in assessment["degradation"]:
+            factor = displayed.get(signal["metric"], {}).get("display_factor")
+            if signal["metric"] in {"ram_free", "swap_free"} and factor:
+                signal.update(
+                    before=signal["before"] * factor, value=signal["value"] * factor, unit="bytes"
+                )
+        for row in assessment["ips"]:
+            row["geo"] = enrich({"ips": [{"ip": row["key"]}]})["ips"][0]
+        assessment["resource_coverage"] = (
+            sum(
+                bool(p.get("source_at"))
+                and abs((last.observed_at - datetime.fromisoformat(p["source_at"])).total_seconds())
+                <= 900
+                for role, p in last.resources.items()
+                if role in {"cpu", "load", "ram_free", "swap_free"}
+            )
+            if fresh
+            else 0
+        )
+        items.append(
+            dict(
+                service_id=svc.id, service=svc.name, at=last.observed_at, fresh=fresh, **assessment
+            )
+        )
+        for frame in rows + [last]:
+            if frame.observed_at < now() - timedelta(hours=hours):
+                continue
+            valid = frame.valid and bool(data(frame))
+            series.append(
+                dict(
+                    at=frame.observed_at,
+                    service=svc.name,
+                    connections=sum(r["active"] for r in data(frame).get("ips", {}).values())
+                    if valid
+                    else None,
+                    anomalies=frame.metrics.get("security_anomalies") if valid else None,
+                )
+            )
+            if not valid:
+                continue
+            for group, totals in (("ips", period_ips), ("domains", period_domains)):
+                for key, row in data(frame).get(group, {}).items():
+                    entry = totals.setdefault(
+                        (svc.id, key),
+                        dict(
+                            key=key,
+                            service=svc.name,
+                            observations=0,
+                            peak=0,
+                            score=0,
+                            deviation=None,
+                            req_max=None,
+                        ),
+                    )
+                    entry["observations"] += row["active"]
+                    entry["peak"] = max(entry["peak"], row["active"])
+                    entry["score"] = max(entry["score"], row.get("score", 0))
+                    for metric in ("deviation", "req_max"):
+                        if row.get(metric) is not None:
+                            entry[metric] = max(entry[metric] or 0, row[metric])
+            for row in data(frame).get("ips", {}).values():
+                for endpoint, count in row["endpoints"].items():
+                    endpoints[endpoint] = endpoints.get(endpoint, 0) + count
+    degrading = any(i["degradation"] for i in items)
+    possible = any(
+        r["category"] == "posible ataque" for i in items for g in ("ips", "domains") for r in i[g]
+    )
+    watch = any(r["signals"] for i in items for g in ("ips", "domains") for r in i[g])
+    complete = (
+        len(items) == len(services)
+        and bool(items)
+        and all(
+            i["fresh"] and i["samples"] >= 24 and i.get("resource_coverage") == 4 for i in items
+        )
+    )
+
+    def leaders(totals):
+        selected = {}
+        for metric in ("observations", "score", "deviation", "req_max"):
+            for key, row in sorted(
+                totals.items(), key=lambda pair: pair[1].get(metric) or 0, reverse=True
+            )[:30]:
+                selected[key] = row
+        return list(selected.values())
+
+    return dict(
+        state="Posible ataque"
+        if possible
+        else "Degradación"
+        if degrading
+        else "Vigilancia"
+        if watch
+        else "Normal"
+        if complete
+        else "Datos insuficientes",
+        items=items,
+        series=series,
+        endpoints=[
+            dict(endpoint=k, observations=v)
+            for k, v in sorted(endpoints.items(), key=lambda x: x[1], reverse=True)[:30]
+        ],
+        active_ips=leaders(period_ips),
+        active_domains=leaders(period_domains),
+    )

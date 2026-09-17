@@ -17,6 +17,7 @@ from app.connectors.mrtg import parse_detail
 from app.db import session_factory
 from app.geo import lookup
 from app.models import (
+    AnomalyState,
     ApacheObservation,
     Incident,
     MrtgMetric,
@@ -289,6 +290,9 @@ def apache_globals(observation):
 def build_frame(db, observation):
     service = db.get(Service, observation.service_id)
     domains, details = rankings(observation.workers or [])
+    from app.threats import capture
+
+    details["security"] = capture(observation.workers or [])
     g = apache_globals(observation)
     from app.performance import internal, sample_metrics
 
@@ -433,6 +437,12 @@ def run():
 def retention():
     with session_factory()() as db:
         db.execute(
+            delete(AnomalyState).where(
+                AnomalyState.subject.like("security:ips:%"),
+                AnomalyState.last_at < now() - timedelta(days=30),
+            )
+        )
+        db.execute(
             update(ServerFrame)
             .where(ServerFrame.observed_at < now() - timedelta(days=30))
             .values(details=None)
@@ -441,6 +451,12 @@ def retention():
         for incident in db.scalars(
             select(Incident).where(Incident.updated_at < now() - timedelta(days=30))
         ):
+            if incident.kind == "security":
+                incident.evidence = {
+                    k: v for k, v in incident.evidence.items() if k not in {"timeline", "reasons"}
+                }
+                if incident.subject.startswith("security:ips:"):
+                    incident.subject = "security:ips:identidad-caducada-" + incident.id
             if "coincidences" in incident.evidence:
                 incident.evidence = {
                     k: v for k, v in incident.evidence.items() if k != "coincidences"

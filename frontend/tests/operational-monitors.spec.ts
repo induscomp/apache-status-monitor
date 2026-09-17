@@ -135,6 +135,15 @@ test('server monitors show resources and activity instead of collection sources'
     else if (path.endsWith('/servers')) json = { items: [server], total: 1 };
     else if (path.endsWith('/services')) json = { items: [], total: 0 };
     else if (path.endsWith('/incidents')) json = { items: [] };
+    else if (path.endsWith('/security-analysis'))
+      json = {
+        state: 'Vigilancia',
+        items: [],
+        series: [],
+        endpoints: [],
+        active_ips: [],
+        active_domains: [],
+      };
     else if (path.endsWith('/analysis'))
       json = {
         server: server.name,
@@ -171,6 +180,10 @@ test('server monitors show resources and activity instead of collection sources'
   await page.setViewportSize({ width: 1440, height: 1050 });
   await page.goto('/');
   await page.getByRole('button', { name: 'Ver servidor Servidor de prueba', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Seguridad y anomalías' })).toContainText(
+    'Estado general: Vigilancia',
+  );
+  await page.getByLabel('Periodo de análisis').selectOption('168');
   const panel = page.getByRole('region', { name: 'Estado de los indicadores del servidor' });
   await expect(panel.getByRole('article')).toHaveCount(7);
   await expect(

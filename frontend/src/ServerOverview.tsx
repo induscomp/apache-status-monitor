@@ -10,6 +10,7 @@ import {
   Legend,
 } from 'recharts';
 import { api } from './api';
+import { SecurityOverview } from './SecurityOverview';
 import { memory, numeric, subjectText, incidentExplanation } from './incidentText';
 import './overview.css';
 import { IncidentTimeline } from './IncidentTimeline';
@@ -88,6 +89,12 @@ type Incident = {
   opened_at: string;
   updated_at: string;
   evidence: {
+    timeline?: {
+      at: string;
+      active: number;
+      reasons: string[];
+      degradation?: { metric: string; before: number; value: number }[];
+    }[];
     value: number;
     reference: { median: number; mad: number; samples: number };
     note: string;
@@ -369,6 +376,7 @@ export function ServerOverview({
   const [error, setError] = useState('');
   const [offset, setOffset] = useState(0);
   const [moreCharts, setMoreCharts] = useState(false);
+  const [hours, setHours] = useState(24);
   useEffect(() => {
     setService('');
     setDomain('');
@@ -381,7 +389,7 @@ export function ServerOverview({
     const refresh = async () => {
       try {
         const query = new URLSearchParams({
-          hours: '24',
+          hours: String(hours),
           ...(service ? { service_id: service } : {}),
           ...(domain ? { domain } : {}),
         });
@@ -404,9 +412,28 @@ export function ServerOverview({
       live = false;
       clearInterval(timer);
     };
-  }, [serverId, service, domain, offset]);
+  }, [serverId, service, domain, offset, hours]);
   return (
     <div className="server-overview">
+      <label>
+        Periodo de análisis{' '}
+        <select value={hours} onChange={(e) => setHours(Number(e.target.value))}>
+          {[
+            [1, '1 h'],
+            [6, '6 h'],
+            [24, '24 h'],
+            [168, '7 días'],
+            [720, '30 días'],
+          ].map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </label>
+      {view === 'status' && (
+        <SecurityOverview serverId={serverId} service={service} hours={hours} />
+      )}
       {error && (
         <p role="alert" className="error">
           {error}
@@ -483,6 +510,25 @@ export function ServerOverview({
                       i.evidence.resources?.[i.evidence.feature]?.display_factor,
                     )}
                   </p>
+                  {i.evidence.timeline && (
+                    <details>
+                      <summary>Evolución del incidente</summary>
+                      <ol>
+                        {i.evidence.timeline.map((e) => (
+                          <li key={e.at}>
+                            {date(e.at)} · {e.active} conexiones · {e.reasons.join(' · ')}
+                            {e.degradation?.map((d) => (
+                              <span key={d.metric}>
+                                {' '}
+                                · {d.metric}: {numeric(d.before)} → {numeric(d.value)}
+                              </span>
+                            ))}
+                          </li>
+                        ))}
+                      </ol>
+                      {i.status === 'resolved' && <p>Fin: {date(i.updated_at)}</p>}
+                    </details>
+                  )}
                   {i.evidence.performance_context && <p>{i.evidence.performance_context.reason}</p>}
                   {i.progress && (
                     <p>
@@ -575,7 +621,7 @@ export function ServerOverview({
                     </select>
                   </label>
                 )}
-                <span>Últimas 24 horas · recogida cada 5 minutos</span>
+                <span>Últimas {hours} horas · recogida cada 5 minutos</span>
               </div>
               {data.warnings.length > 0 && (
                 <details className="overview-card">
@@ -828,7 +874,7 @@ export function ServerOverview({
                       </div>
                     </section>
                     <section className="overview-card">
-                      <h3>Más apariciones en 24 horas</h3>
+                      <h3>Más apariciones en {hours} horas</h3>
                       <div className="overview-table">
                         <table>
                           <tbody>
