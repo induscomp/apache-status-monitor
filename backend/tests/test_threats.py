@@ -111,6 +111,13 @@ def test_security_incident_confirmed_once_evolves_and_missing_data_never_resolve
             )
         )
         assert incident and incident.status == "open"
+        db.flush()
+        db.expire(current)
+        repeated = assess(current, [])
+        assert repeated["ips"][0]["active"] == 15
+        original_timeline = incident.evidence["timeline"]
+        evaluate(db, current, settings)
+        assert incident.evidence["timeline"] == original_timeline
         assert len(incident.evidence["timeline"]) == 3
         for i in range(3, 7):
             missing = frame(db, svc, at + timedelta(minutes=5 * i), valid=False)
@@ -122,4 +129,20 @@ def test_security_incident_confirmed_once_evolves_and_missing_data_never_resolve
             evaluate(db, normal, settings)
         assert incident.status == "resolved"
         assert len(incident.evidence["timeline"]) >= 5
+        db.rollback()
+
+
+def test_routine_sensitive_endpoint_use_does_not_open_incidents_without_deviation():
+    with session_factory()() as db:
+        svc = service(db)
+        at = now()
+        workers = [worker(path="/wp-admin/admin-ajax.php") for _ in range(15)]
+        for i in range(40, 0, -1):
+            old = frame(db, svc, at - timedelta(minutes=30 + 5 * i))
+            old.details = {"security": capture(workers)}
+        for i in range(3):
+            current = frame(db, svc, at + timedelta(minutes=i * 5))
+            current.details = {"security": capture(workers)}
+            evaluate(db, current, AlertSettings().model_dump())
+        assert db.scalar(select(Incident).where(Incident.service_id == svc.id)) is None
         db.rollback()

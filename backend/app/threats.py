@@ -114,7 +114,9 @@ def assess(frame, rows, settings=None):
     result = dict(ips=[], domains=[], degradation=[], basis=basis, samples=len(refs))
     recent = [r for r in rows if r.observed_at >= frame.observed_at - timedelta(minutes=30)]
     for group in ("ips", "domains"):
-        for key, row in data(frame).get(group, {}).items():
+        for key, stored_row in data(frame).get(group, {}).items():
+            # Stored ranking scores are outputs, never inputs to a fresh assessment.
+            row = {k: v for k, v in stored_row.items() if k not in {"score", "deviation"}}
             values = [data(r).get(group, {}).get(key, {}).get("active", 0) for r in refs]
             # New IPs have no personal baseline, even when the server has history.
             ref = (
@@ -348,14 +350,18 @@ def evaluate(db, frame, settings):
         f"security:{group}:{r['key']}": r
         for group in ("ips", "domains")
         for r in result[group]
-        if r["signals"] >= 2
+        if r["signals"] >= 2 and domain_spike(r["active"], r["reference"], settings)
     }
     states = db.scalars(
         select(AnomalyState).where(
             AnomalyState.service_id == frame.service_id, AnomalyState.subject.like("security:%")
         )
     ).all()
-    subjects = set(targets) | {s.subject for s in states if s.bad or s.incident_id}
+    subjects = set(targets) | {
+        s.subject
+        for s in states
+        if s.bad or (s.incident_id and db.get(Incident, s.incident_id).status == "open")
+    }
     for subject in subjects:
         row = targets.get(subject)
         state = next((s for s in states if s.subject == subject), None)
