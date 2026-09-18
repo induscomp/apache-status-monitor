@@ -1,0 +1,42 @@
+from dataclasses import dataclass
+from typing import Protocol
+
+
+@dataclass(frozen=True)
+class ConnectorDescriptor:
+    kind: str
+    name: str
+    description: str
+    implemented: bool = False
+
+
+@dataclass(frozen=True)
+class CollectionResult:
+    metrics: dict
+    capabilities: tuple[str, ...]
+    warnings: tuple[str, ...]
+
+
+class Connector(Protocol):
+    """Connectors must use the shared DNS-pinned, bounded transport."""
+
+    def collect(self, configuration: dict, transport: object) -> CollectionResult: ...
+
+
+CONNECTORS = {
+    "goaccess": ConnectorDescriptor(
+        "goaccess",
+        "GoAccess",
+        "Estadísticas del periodo de un informe HTML público, con fecha de generación.",
+        True,
+    ),
+    "apache_status": ConnectorDescriptor(
+        "apache_status", "Apache Status", "Workers, dominios y actividad observada de Apache.", True
+    ),
+    "mrtg": ConnectorDescriptor(
+        "mrtg",
+        "MRTG",
+        "Índice → enlaces de imágenes → estadísticas de las páginas de detalle.",
+        True,
+    ),
+}

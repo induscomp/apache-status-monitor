@@ -1,48 +1,78 @@
-# Arquitectura y seguridad desde el diseño
+# Arquitectura
 
-Estado: requisitos para la implementación; no representan controles ya implementados.
+## Modelo y procesos
 
-## Componentes
+Un servidor agrupa varios servicios. Cada servicio tiene tipo (`apache_status`, `mrtg` o `goaccess`), nombre, URL, intervalo (300 segundos), opciones, credenciales opcionales, estado y revisión. Se admiten varios servicios del mismo tipo. Los nombres de servidor son únicos; los de servicio son únicos dentro de su servidor.
 
-1. Panel web accesible y adaptable a móviles, con autenticación obligatoria y permisos por servidor.
-2. API que valida entradas, aplica autorización en cada operación y registra cambios administrativos sin secretos.
-3. Recolector independiente, ejecutado por cron bajo una identidad con privilegios mínimos. No expondrá un endpoint público para ejecutar tareas.
-4. Base de datos con migraciones, consultas parametrizadas, retención definida y copias de seguridad restaurables.
+PostgreSQL almacena `servers`, `services`, `service_revisions`, `admins`, `auth_sessions`, `rate_buckets`, `audit_events` y `component_heartbeats`. Cada edición de servicio crea una revisión sin credenciales ni ciphertext. Archivar un servidor suspende efectivamente todos sus servicios conservando sus estados individuales. No hay borrado físico en la API.
 
-El MVP será autohospedado. Se evitarán servicios y dependencias innecesarios. La elección de tecnologías quedará registrada con alternativas y versiones soportadas.
+Los snapshots, dominios, IP e incidentes se asocian al servicio y su revisión. Un mismo dominio en dos servicios no compartirá contadores ni referencias estadísticas.
 
-## Fronteras de confianza
+| Proceso | Responsabilidad |
+|---|---|
+| backend | FastAPI, SQLAlchemy/psycopg con pool limitado, autenticación y configuración |
+| worker | APScheduler 3.x; heartbeat cada 30 segundos y limpieza de sesiones/rate limits cada hora |
+| postgres | PostgreSQL 18, volumen persistente y sin puerto publicado |
+| nginx | Frontend compilado y proxy; sin Node en producción |
+| cloudflared | Perfil tunnel dedicado; no modifica otros túneles |
+| migrate | Tarea única previa al backend/worker; roles y migraciones Alembic |
 
-Las URL configuradas, las respuestas de Apache y las contribuciones al repositorio son entradas no confiables. El recolector tendrá acceso de red limitado a los destinos aprobados. Los usuarios del panel no podrán ampliar por sí solos la política de salida del despliegue.
+Solo `migrate` y PostgreSQL reciben la credencial propietaria. El rol de aplicación `smon` no puede crear roles, bases o tablas ni es superusuario. El propietario aplica migraciones y concede permisos de datos.
 
-## Requisitos del recolector
+Los conectores Apache, MRTG y GoAccess están implementados. El worker recoge las fuentes públicas configuradas y ejecuta análisis y notificaciones; no hay carga de plugins arbitrarios. Ver [Apache](apache.md), [MRTG](mrtg.md) y [análisis](analysis.md).
 
-- Prevenir SSRF: permitir únicamente esquemas, hosts y puertos aprobados por el operador; rechazar credenciales en URL y esquemas distintos de HTTPS por defecto.
-- Validar todas las direcciones IPv4/IPv6 resueltas antes de conectar y conectar a una dirección validada conservando la verificación TLS del hostname, evitando una segunda resolución vulnerable a DNS rebinding.
-- Bloquear loopback, link-local, servicios de metadatos y rangos reservados. Los destinos privados requieren una allowlist explícita del operador y segmentación de red. No habilitar acceso indiscriminado a redes internas.
-- Desactivar redirecciones y proxies heredados del entorno por defecto. Un proxy futuro deberá preservar las mismas restricciones de destino.
-- Verificar certificados y hostname TLS. Admitir una CA privada configurada, sin desactivar la verificación.
-- Fijar límites de conexión y duración total, bytes recibidos y descomprimidos, tamaño del parser y concurrencia. Aplicar reintentos limitados con espera creciente.
-- Impedir solapamientos por servidor mediante bloqueo con caducidad; guardar muestras de forma idempotente y registrar timestamps UTC.
-- Parsear únicamente el formato esperado; no ejecutar comandos construidos desde URL ni interpretar HTML recibido.
+## API implementada
 
-## Panel y datos
+Prefijo `/api/v1`. Access obligatorio en producción; recursos privados requieren también sesión local.
 
-- Autenticación con una biblioteca mantenida, autorización en servidor, límites de intentos y sesiones revocables.
-- Cookies Secure, HttpOnly y SameSite; protección CSRF para operaciones con cookies, escape de salidas y política CSP restrictiva.
-- Separar credenciales de configuración pública; cifrar secretos persistidos con una clave externa a la base de datos y permitir su rotación.
-- No registrar contraseñas, tokens, cabeceras de autorización ni respuestas completas de estado. Minimizar IP de clientes, rutas y parámetros de peticiones; conservar métricas agregadas.
-- Restringir `/server-status` en Apache al recolector mediante controles de red y acceso. Que este repositorio sea público no implica publicar el panel o los endpoints monitorizados.
-- No deducir saturación absoluta sin conocer capacidad y configuración del servidor. Las tasas por intervalo usarán diferencias de contadores y detectarán reinicios; los promedios desde el arranque se etiquetarán como tales.
+| Recurso | Operación |
+|---|---|
+| POST /auth/login | Email, contraseña y TOTP/recuperación; cookie HttpOnly y token CSRF |
+| GET /auth/session | Cuenta y token CSRF |
+| POST /auth/logout | Revocar sesión actual |
+| POST /auth/revoke-sessions | Revocar todas las sesiones |
+| GET /connectors | Tipos y estado de implementación |
+| GET /dashboard | Resumen paginado de servidores y fuentes de la cuenta |
+| GET /servers/{id} | Configuración de un servidor |
+| GET /services/{id}/goaccess | Último informe, frescura e histórico de resúmenes |
+| GET, POST /servers | Listar/crear servidores |
+| PUT /servers/{id} | Editar, archivar o restaurar |
+| GET, POST /servers/{id}/services | Listar/crear servicios |
+| PUT /services/{id} | Editar, pausar o archivar/restaurar; incrementar revisión |
+| GET /services/{id}/status | Estado efectivo sin lecturas ficticias |
+| GET /health | Base de datos, heartbeat y funcionalidades pendientes |
 
-## Desarrollo y despliegue
+Listados `{items,total}` con `offset=0`, `limit=50`, máximo 100. PUT recibe configuración editable completa; tipo y servidor del servicio son inmutables. Cuerpos limitados a 16 KiB, incluidos mensajes chunked. Los errores no reflejan entradas.
 
-- Nunca versionar secretos, datos reales de servidores, volcados o claves privadas. `.gitignore` es una protección auxiliar, no un detector de secretos.
-- Añadir lockfiles, auditoría de dependencias y pruebas de seguridad al introducir el stack. Fijar acciones de terceros por SHA y dar permisos mínimos a CI.
-- Antes de la primera versión ejecutable, probar SSRF (incluido DNS rebinding e IPv6), TLS inválido, timeouts, respuestas malformadas o excesivas, permisos, sesiones y solapamientos del cron.
-- Ejecutar servicios sin root, con exposición de red mínima, política de actualizaciones y procedimiento probado de backup y restauración.
+`/health/live` y `/health/ready` son probes internos mínimos bloqueados por Nginx. `/healthz` comprueba solo Nginx. Series, dominios e incidentes tienen API privada descrita en [análisis](analysis.md); los eventos manuales están pendientes.
 
-## Fuentes
+## Autenticación
+
+Producción exige HTTPS, dominio de equipo `*.cloudflareaccess.com` y audience. Se valida JWT RS256: firma, emisor, audiencia, expiración, emisión, sujeto y email. JWKS procede del dominio configurado, nunca del token; timeout de cinco segundos y caché de cinco minutos. Claves desconocidas no fuerzan descargas por petición. Una rotación puede requerir hasta cinco minutos, denegando acceso mientras tanto.
+
+El email de Access debe coincidir con el administrador local. Sesiones de ocho horas con token almacenado como hash. En HTTPS, cookie `__Host-smon`, Secure, HttpOnly y SameSite=Strict. Mutaciones requieren Origin exacto y, salvo login, token CSRF.
+
+TOTP y recuperación se consumen bajo bloqueo de fila; no admiten reutilización concurrente. Tolerancia TOTP de un paso. El alta inicial se realiza mediante un asistente web protegido por una clave de instalación privada, origen y Access en producción, o mediante CLI local. El asistente solo crea la cuenta tras confirmar TOTP, con una autorización cifrada de diez minutos, y se cierra al existir el administrador único. Los cambios de contraseña/MFA son locales e interactivos. Cambiar contraseña o MFA revoca sesiones. No hay registro público ni contraseña por defecto.
+
+Rate limiting atómico en PostgreSQL: cinco intentos por cuenta/cinco minutos y 30 globales/minuto. No depende de cabeceras IP. Access debe restringir previamente la identidad.
+
+Credenciales de endpoints y secreto TOTP cifrados con Fernet y clave externa. Nunca aparecen en respuestas, revisiones o logs. Conserva la clave fuera del equipo para recuperación; no hay rotación automática en este hito.
+
+## Destinos y límites actuales
+
+La cuenta administradora puede autorizar el origen exacto por servicio con `options.authorize_origin`; HTTP requiere además `options.allow_http`. Para servicios sin esta autorización, se mantienen `SMON_ALLOWED_MONITOR_ORIGINS` y `SMON_ALLOWED_HTTP_ORIGINS` como listas del operador. Se rechazan credenciales/query en URL, esquemas ajenos a HTTP(S), literales no públicos y caracteres ambiguos. Basic solo se permite con HTTPS.
+
+El transporte valida DNS IPv4/IPv6, rechaza redes internas y conecta a una IP aprobada conservando TLS/hostname. No sigue redirecciones ni proxies ambientales. Limita tamaño, tiempo y concurrencia. Apache y MRTG tienen recogidas independientes, bloqueo por servicio e idempotencia.
+
+El estado de un servicio refleja frescura, error, pausa o archivo; su disponibilidad no equivale a salud del servidor. Las métricas, series e incidentes conservan servicio y revisión en PostgreSQL. La presión de recursos se evalúa con MRTG incluso cuando Apache falla.
+
+Logs de aplicación JSON con evento, método y duración; sin URL, query, cuerpos o tokens. Logs de acceso Uvicorn/Nginx desactivados. Auditoría administrativa persistente en PostgreSQL.
+
+## Referencias
 
 - [Apache mod_status](https://httpd.apache.org/docs/2.4/mod/mod_status.html)
-- [OWASP: SSRF Prevention](https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html)
+- [OWASP SSRF](https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html)
+- [Validación de JWT Access](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/validating-json/)
+- [PyOTP](https://pyauth.github.io/pyotp/)
+
+GoAccess conserva informes normalizados en `goaccess_reports` y estado de consulta independiente en `goaccess_states`, incorporados por la migración 005. Ver [fuentes opcionales y GoAccess](goaccess.md).

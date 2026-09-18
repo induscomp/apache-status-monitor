@@ -1,0 +1,74 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Foundation checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.14'
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install locked Python dependencies
+        working-directory: backend
+        run: |
+          python -m pip install uv==0.12.12
+          uv sync --frozen
+      - name: Lint Python and check formatting
+        working-directory: backend
+        run: |
+          .venv/bin/ruff check app migrations tests
+          .venv/bin/ruff format --check app migrations tests
+      - name: Audit Python dependencies
+        working-directory: backend
+        run: .venv/bin/pip-audit --progress-spinner off
+      - name: Build and audit frontend
+        working-directory: frontend
+        run: |
+          npm ci --ignore-scripts
+          npm run format:check
+          npm run build
+          npm audit --audit-level=high
+          npx playwright install --with-deps chromium
+      - name: PostgreSQL migrations, security and browser tests
+        env:
+          SMON_RUN_E2E: '1'
+        run: bash scripts/test-backend.sh
+      - name: Docker build and local startup
+        run: |
+          export SMON_UID="$(id -u)" SMON_GID="$(id -g)"
+          python scripts/init-secrets.py
+          docker compose -f compose.yaml -f compose.local.yaml config --quiet
+          docker compose -f compose.yaml -f compose.local.yaml up --build -d --wait --wait-timeout 120
+          curl --fail http://localhost:8187/healthz
+          docker compose -f compose.yaml -f compose.local.yaml exec -T backend python -c "from app.db import session_factory; from sqlalchemy import text; db=session_factory()(); assert db.scalar(text('SELECT current_user')) == 'smon'; assert not db.scalar(text(\"SELECT rolsuper FROM pg_roles WHERE rolname = current_user\")); assert not db.scalar(text(\"SELECT has_schema_privilege(current_user, 'public', 'CREATE')\"))"
+      - name: Stop this workflow's local stack
+        if: always()
+        run: docker compose -f compose.yaml -f compose.local.yaml down --volumes
+      - name: Browser screenshots and failure traces (synthetic data only)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: browser-results
+          path: frontend/test-results/
+          retention-days: 7
+          if-no-files-found: ignore

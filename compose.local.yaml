@@ -1,0 +1,12 @@
+# Development only: loopback access; never use this profile behind a public tunnel.
+services:
+  migrate:
+    environment: &local
+      SMON_ENVIRONMENT: development
+      SMON_PUBLIC_ORIGIN: http://localhost:8187
+  backend:
+    environment: *local
+  worker:
+    environment: *local
+  nginx:
+    ports: ["127.0.0.1:8187:8080"]
