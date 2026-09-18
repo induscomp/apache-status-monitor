@@ -146,7 +146,7 @@ Los agregados con IP y endpoints viven en `ServerFrame.details` y caducan a 30 d
 
 ## Ventanas de IP y familias de red
 
-«Ataques y actividad IP» es una vista independiente con ventanas de 5, 10, 25, 30 y 60 minutos. Compara actividad con ventanas completas de igual duración de las últimas 24 h, excluyendo la hora reciente. Si no hay referencia propia suficiente, puede indicar un crecimiento brusco frente a la ventana anterior, identificado expresamente como comparación corta. No compara la suma de una hora con la de cinco minutos.
+«Ataques y actividad IP» es una vista independiente con ventanas de 5, 10, 25, 30 y 60 minutos. Terminan en la última captura reciente, cuya hora se muestra, para que el desfase normal de recogida no vacíe la ventana de cinco minutos. Si no hay lectura reciente se consulta hasta la hora actual y se indica la falta de frescura. Compara actividad con ventanas completas de igual duración de las últimas 24 h, excluyendo la hora reciente. Si no hay referencia propia suficiente, puede indicar un crecimiento brusco frente a la ventana anterior, identificado expresamente como comparación corta. No compara la suma de una hora con la de cinco minutos.
 
 Los prefijos IPv4 /24 e IPv6 /64 agrupan IP vecinas; las IPv4 mapeadas en IPv6 se agrupan por su IPv4. Una coincidencia de prefijo no identifica al mismo actor. Se muestran miembros, destinos y endpoints compartidos, separando esta evidencia de las coincidencias con degradación. No hay bloqueo automático de IP ni de rangos.
 

@@ -636,12 +636,15 @@ def ip_activity(
         rows = [f for f in history(db, last) if f.observed_at >= now() - timedelta(hours=25)] + [
             last
         ]
-        result = analyze(rows, now(), minutes, settings_for(server))
         fresh = (
             last.valid
             and last.revision == svc.revision
             and now() - last.observed_at <= timedelta(minutes=10)
         )
+        # Align windows to the latest fresh capture so normal scheduler jitter does
+        # not make the five-minute view empty immediately before the next poll.
+        anchor = min(last.observed_at, now()) if fresh else now()
+        result = analyze(rows, anchor, minutes, settings_for(server))
         if server.archived:
             result.update(ips=[], networks=[], coverage=0)
         result["ips"] = result["ips"][:100]
