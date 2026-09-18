@@ -31,7 +31,7 @@ def main():
             if frame.metrics.get("performance_version") == 1:
                 from app.threats import capture
 
-                if (frame.details or {}).get("security", {}).get("window_version") != 1:
+                if (frame.details or {}).get("security", {}).get("domain_version") != 1:
                     security = capture(observation.workers)
                     for group in ("ips", "domains"):
                         for key, row in security[group].items():

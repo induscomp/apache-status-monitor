@@ -20,7 +20,7 @@ SENSITIVE = re.compile(
 )
 
 
-def traces(workers):
+def traces(workers, domains_only=False):
     result = []
     for w in workers:
         path, ip = w.get("path"), w.get("client")
@@ -40,7 +40,7 @@ def traces(workers):
         if previous and (w.get("seconds_since") is None or not 0 <= w["seconds_since"] <= 300):
             continue
         decoded = unquote(path)
-        if not (PROBE.search(decoded) or SENSITIVE.search(decoded)):
+        if not domains_only and not (PROBE.search(decoded) or SENSITIVE.search(decoded)):
             continue
         result.append(
             dict(
@@ -57,6 +57,23 @@ def traces(workers):
             )
         )
     return result
+
+
+def domain_observations(workers):
+    visits = {}
+    for trace in traces(workers, domains_only=True):
+        if trace["domain"]:
+            visits.setdefault(trace["ip"], set()).add(trace["domain"])
+    return {ip: sorted(domains) for ip, domains in visits.items()}
+
+
+def trusted(ip, settings):
+    address = ipaddress.ip_address(ip)
+    address = getattr(address, "ipv4_mapped", None) or address
+    return any(
+        address in ipaddress.ip_network(value)
+        for value in settings.get("multidomain_trusted_ips", [])
+    )
 
 
 def network(ip):
@@ -78,7 +95,8 @@ def aggregate(frames):
         if not frame.valid or captured.get("window_version") != 1:
             continue
         records = captured.get("traces", [])
-        addresses = set(captured.get("ips", {})) | {r["ip"] for r in records}
+        visits = captured.get("domain_observations", {})
+        addresses = set(captured.get("ips", {})) | {r["ip"] for r in records} | set(visits)
         for ip in addresses:
             active = captured.get("ips", {}).get(ip, {})
             items = [r for r in records if r["ip"] == ip]
@@ -107,6 +125,11 @@ def aggregate(frames):
                 )
                 row["ips"].add(ip)
                 row["domains"].update(active.get("peers", {}))
+                row["domains"].update(visits.get(ip, []))
+                for domain in set(active.get("peers", {})) | set(visits.get(ip, [])):
+                    row.setdefault("domain_samples", {}).setdefault(domain, set()).add(
+                        frame.observed_at
+                    )
                 row["samples"].add(frame.observed_at)
                 row["active_by_sample"][frame.observed_at] += active.get("active", 0)
                 row["last"] = frame.observed_at
@@ -133,6 +156,9 @@ def aggregate(frames):
 
 
 def analyze(frames, at, minutes, settings=None):
+    from app.alert_settings import AlertSettings
+
+    settings = settings or AlertSettings().model_dump()
     frames = list(
         {
             int(f.observed_at.timestamp()) // 300: f
@@ -212,17 +238,29 @@ def analyze(frames, at, minutes, settings=None):
                 and bool(shared)
                 and (row["probes"] >= 2 or credential_pattern or spike)
             )
-            flagged = (probe_pattern or credential_pattern or coordinated or spike) and (
-                group == "ips" or len(row["ips"]) >= 2
-            )
+            domain_limit = settings.get("multidomain_min_domains", 3)
+            exempt = group == "ips" and trusted(key, settings)
+            multidomain = group == "ips" and len(row["domains"]) >= domain_limit and not exempt
+            flagged = (
+                probe_pattern or credential_pattern or coordinated or spike or multidomain
+            ) and (group == "ips" or len(row["ips"]) >= 2)
             score = min(
                 100,
                 (35 if probe_pattern or credential_pattern else 0)
                 + (25 if spike else 0)
                 + (25 if coordinated else 0)
+                + (30 if multidomain else 0)
                 + (min(3, len(row["samples"])) * 5 if row["signatures"] else 0),
             )
             reasons = []
+            if multidomain:
+                reasons.append(
+                    f"Una misma IP observada en {len(row['domains'])} dominios dentro de {minutes} minutos (aviso desde {domain_limit}); revisar navegación entre sitios"
+                )
+            elif exempt and len(row["domains"]) >= domain_limit:
+                reasons.append(
+                    "IP de confianza para la regla multidominio; las demás señales siguen evaluándose"
+                )
             if spike:
                 reasons.append(
                     f"{observed} conexiones sumadas frente a {ref['median']} en "
@@ -255,6 +293,10 @@ def analyze(frames, at, minutes, settings=None):
                     key=key,
                     score=score,
                     flagged=flagged,
+                    multidomain=multidomain,
+                    domain_samples={
+                        d: sorted(times) for d, times in row.get("domain_samples", {}).items()
+                    },
                     reasons=reasons,
                     reference=ref,
                     observations=observed,
@@ -341,11 +383,27 @@ def evaluate(db, frame, history, settings):
             fresh_spike = domain_spike(row["observations"], row["reference"], settings) and any(
                 current_ips.get(ip, {}).get("active", 0) > 0 for ip in row["ips"]
             )
-            if not (fresh_probe or fresh_spike):
+            current_visits = (
+                (frame.details or {}).get("security", {}).get("domain_observations", {})
+            )
+            previous_frame = selected[-2] if len(selected) > 1 else None
+            previous_visits = (
+                (previous_frame.details or {}).get("security", {}).get("domain_observations", {})
+                if previous_frame
+                else {}
+            )
+            key = row["key"]
+            fresh_multidomain = row.get("multidomain", False) and (
+                len(current_ips.get(key, {}).get("peers", {}))
+                >= settings.get("multidomain_min_domains", 3)
+                or bool(set(current_visits.get(key, [])) - set(previous_visits.get(key, [])))
+            )
+            if not (fresh_probe or fresh_spike or fresh_multidomain):
                 ref = None  # Overlapping windows cannot provide new confirmation alone.
         event = dict(
             at=frame.observed_at.isoformat(),
             active=row.get("peak", 0),
+            domains=row.get("domains", [])[:30],
             reasons=row.get("reasons", ["Sin patrón combinado en las ventanas completas"]),
         )
         timeline = (existing.evidence.get("timeline", []) if opened else []) + [event]

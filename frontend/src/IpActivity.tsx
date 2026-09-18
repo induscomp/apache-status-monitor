@@ -19,6 +19,7 @@ type Row = {
   reasons: string[];
   ips: string[];
   domains: string[];
+  domain_samples?: Record<string, string[]>;
   endpoints: Record<string, number>;
   shared: { target: string; ips: string[] }[];
   reference: { median: number; samples: number; kind?: string } | null;
@@ -196,9 +197,14 @@ export function IpActivity({ serverId }: { serverId: string }) {
                       <td>
                         <details>
                           <summary>
-                            {r.signatures} huellas sensibles · {r.probes} de posible exposición
+                            {r.domains.length} dominios · {r.signatures} huellas sensibles
                           </summary>
                           <p>{r.domains.join(' · ') || 'Dominio no identificado'}</p>
+                          {Object.entries(r.domain_samples || {}).map(([domain, times]) => (
+                            <p key={domain}>
+                              {domain}: {times.map(date).join(' · ')}
+                            </p>
+                          ))}
                           {Object.entries(r.endpoints).map(([path, count]) => (
                             <p key={path}>
                               {path} · {count} huellas

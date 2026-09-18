@@ -153,3 +153,74 @@ def test_short_window_growth_is_explained_without_claiming_a_mature_baseline():
     row = analyze(rows, at, 5)["ips"][0]
     assert row["flagged"] and row["reference"]["kind"] == "previous_window"
     assert not row["signatures"]
+
+
+def test_multidomain_threshold_counts_distinct_domains_and_window_membership():
+    at = now()
+
+    def visits(names):
+        return [{**worker(path="/", slot=str(i)), "domain": name} for i, name in enumerate(names)]
+
+    two = snapshot(at, visits(["one.test", "one.test", "two.test"]))
+    row = analyze([two], at, 5)["ips"][0]
+    assert not row["flagged"] and not row["multidomain"]
+    earlier = snapshot(at - timedelta(minutes=10), visits(["three.test"]))
+    row = analyze([earlier, two], at, 25)["ips"][0]
+    assert row["flagged"] and row["multidomain"]
+    assert row["domains"] == ["one.test", "three.test", "two.test"]
+    assert row["domain_samples"]["three.test"] == [earlier.observed_at]
+    assert not row["signatures"]
+    assert not analyze([earlier, two], at, 5)["ips"][0]["flagged"]
+    settings = AlertSettings(multidomain_min_domains=4).model_dump()
+    assert not analyze([earlier, two], at, 25, settings)["ips"][0]["multidomain"]
+
+
+def test_trusted_ip_exempts_only_multidomain_and_retained_normal_requests_are_visible():
+    at = now()
+    workers = [
+        {**worker(path="/", state="_", age=20, slot=str(i)), "domain": f"{i}.test"}
+        for i in range(3)
+    ]
+    row = analyze([snapshot(at, workers)], at, 5)["ips"][0]
+    assert row["multidomain"] and row["peak"] == 0
+    settings = AlertSettings(multidomain_trusted_ips=["192.0.2.1"]).model_dump()
+    assert not analyze([snapshot(at, workers)], at, 5, settings)["ips"][0]["flagged"]
+    workers += [worker(path="/.env", slot="10"), worker(path="/.git/config", slot="11")]
+    row = analyze([snapshot(at, workers)], at, 5, settings)["ips"][0]
+    assert row["flagged"] and not row["multidomain"]
+    assert AlertSettings(
+        multidomain_trusted_ips=["2001:db8::1", "192.0.2.2/24"]
+    ).multidomain_trusted_ips == ["192.0.2.0/24", "2001:db8::1/128"]
+    import pytest
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        AlertSettings(multidomain_trusted_ips=["not-an-ip"])
+
+
+def test_multidomain_incident_needs_confirmation_and_is_service_scoped():
+    with session_factory()() as db:
+        svc = service(db)
+        other = service(db)
+        at = now()
+        rows = []
+        for i in range(12, 0, -1):
+            old = frame(db, svc, at - timedelta(minutes=5 * i))
+            old.details = {"security": capture([])}
+            rows.append(old)
+        for i in range(2):
+            current = frame(db, svc, at + timedelta(minutes=5 * i))
+            current.details = {
+                "security": capture(
+                    [{**worker(path="/", slot=str(j)), "domain": f"{j}.test"} for j in range(3)]
+                )
+            }
+            evaluate(db, current, rows, AlertSettings().model_dump())
+            rows.append(current)
+            if i == 0:
+                assert db.scalar(select(Incident).where(Incident.service_id == svc.id)) is None
+        incident = db.scalar(select(Incident).where(Incident.service_id == svc.id))
+        assert incident and incident.status == "open" and incident.severity == "warning"
+        assert any("3 dominios" in r for r in incident.evidence["reasons"])
+        assert db.scalar(select(Incident).where(Incident.service_id == other.id)) is None
+        db.rollback()

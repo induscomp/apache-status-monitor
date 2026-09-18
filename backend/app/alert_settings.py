@@ -1,6 +1,8 @@
 """Validated server-scoped sensitivity; memory severity remains evidence-based."""
 
-from pydantic import Field
+import ipaddress
+
+from pydantic import Field, field_validator
 
 from app.schemas import StrictModel
 
@@ -12,6 +14,13 @@ class AlertSettings(StrictModel):
     resource_multiplier: float = Field(2, ge=1.1, le=100, allow_inf_nan=False)
     open_samples: int = Field(2, ge=2, le=12)
     recovery_samples: int = Field(3, ge=2, le=12)
+    multidomain_min_domains: int = Field(3, ge=3, le=100)
+    multidomain_trusted_ips: list[str] = Field(default_factory=list, max_length=50)
+
+    @field_validator("multidomain_trusted_ips")
+    @classmethod
+    def validate_trusted(cls, values):
+        return sorted({str(ipaddress.ip_network(value.strip(), strict=False)) for value in values})
 
 
 def settings_for(server):

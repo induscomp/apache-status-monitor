@@ -8,15 +8,25 @@ type Settings = {
   resource_multiplier: number;
   open_samples: number;
   recovery_samples: number;
+  multidomain_min_domains: number;
+  multidomain_trusted_ips: string[];
 };
 const fields: {
-  key: keyof Settings;
+  key: Exclude<keyof Settings, 'multidomain_trusted_ips'>;
   label: string;
   min: number;
   max: number;
   step: number;
   help: string;
 }[] = [
+  {
+    key: 'multidomain_min_domains',
+    label: 'Dominios distintos por IP para avisar',
+    min: 3,
+    max: 100,
+    step: 1,
+    help: 'Por defecto, una IP observada en 3 dominios dentro de cualquiera de las ventanas de 5 a 60 minutos genera una señal de revisión.',
+  },
   {
     key: 'domain_multiplier',
     label: 'Multiplicador de actividad del dominio',
@@ -68,13 +78,20 @@ const fields: {
 ];
 export function AlertConfiguration({ serverId, csrf }: { serverId: string; csrf: string }) {
   const [settings, setSettings] = useState<Settings | null>(null);
+  const [trustedText, setTrustedText] = useState('');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     let active = true;
+    setSettings(null);
+    setTrustedText('');
+    setMessage('');
     api<Settings>(`/servers/${serverId}/alert-settings`)
       .then((value) => {
-        if (active) setSettings(value);
+        if (active) {
+          setSettings(value);
+          setTrustedText((value.multidomain_trusted_ips || []).join('\n'));
+        }
       })
       .catch(() => {
         if (active) setMessage('No se pudieron cargar los ajustes de alertas.');
@@ -99,7 +116,10 @@ export function AlertConfiguration({ serverId, csrf }: { serverId: string; csrf:
             setMessage('');
             try {
               setSettings(
-                await api<Settings>(`/servers/${serverId}/alert-settings`, csrf, 'PUT', settings),
+                await api<Settings>(`/servers/${serverId}/alert-settings`, csrf, 'PUT', {
+                  ...settings,
+                  multidomain_trusted_ips: trustedText.split(/[\s,]+/).filter(Boolean),
+                }),
               );
               setMessage(
                 'Ajustes guardados. Se aplicarán a las próximas evaluaciones; el histórico se conserva.',
@@ -131,6 +151,20 @@ export function AlertConfiguration({ serverId, csrf }: { serverId: string; csrf:
                 <small>{field.help}</small>
               </label>
             ))}
+            <label>
+              IP del administrador o de confianza para multidominio
+              <textarea
+                value={trustedText}
+                onChange={(e) => setTrustedText(e.target.value)}
+                rows={3}
+                placeholder="Una IP o rango CIDR por línea"
+              />
+              <small>
+                Hasta 50 IP o rangos. Solo excluye la regla de múltiples dominios; no oculta
+                sondeos, POST sospechosos ni otras anomalías. No se añade automáticamente ninguna
+                IP.
+              </small>
+            </label>
           </fieldset>
           <p>
             RAM en naranja; memoria en rojo solo con uso de swap confirmado. Configura la capacidad

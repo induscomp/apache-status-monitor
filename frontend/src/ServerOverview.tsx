@@ -92,6 +92,7 @@ type Incident = {
     timeline?: {
       at: string;
       active: number;
+      domains?: string[];
       reasons: string[];
       degradation?: { metric: string; before: number; value: number }[];
     }[];
@@ -517,6 +518,7 @@ export function ServerOverview({
                         {i.evidence.timeline.map((e) => (
                           <li key={e.at}>
                             {date(e.at)} · {e.active} conexiones · {e.reasons.join(' · ')}
+                            {e.domains?.length ? ` · Dominios: ${e.domains.join(' · ')}` : ''}
                             {e.degradation?.map((d) => (
                               <span key={d.metric}>
                                 {' '}

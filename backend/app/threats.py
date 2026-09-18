@@ -59,9 +59,17 @@ def capture(workers):
     for table in (ips, domains):
         for row in table.values():
             row.update(stats(row.pop("req")))
-    from app.ip_activity import traces
+    from app.ip_activity import domain_observations, traces
 
-    return dict(version=1, window_version=1, traces=traces(workers), ips=ips, domains=domains)
+    return dict(
+        version=1,
+        window_version=1,
+        domain_version=1,
+        domain_observations=domain_observations(workers),
+        traces=traces(workers),
+        ips=ips,
+        domains=domains,
+    )
 
 
 def history(db, frame):

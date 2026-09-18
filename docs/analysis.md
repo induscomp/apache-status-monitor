@@ -159,3 +159,11 @@ Los nuevos agregados se reconstruyen desde workers retenidos mediante `python -m
 ## Swap: lectura, tendencia y capacidad
 
 La cantidad libre y su frescura pueden evaluarse aunque no se conozca la capacidad total. En ese caso el panel muestra «Swap libre estable», «Swap libre en descenso» o aprendizaje, explicando que no permite calcular el consumo total. Una capacidad configurada inferior a la lectura libre se señala como incoherente, indicando revisar factor y unidades. El total debe estar en la misma unidad que el valor convertido; un comentario numérico en bytes con factor 1 sigue estando en bytes aunque se escriba otra etiqueta. El máximo diario/semanal de MRTG no demuestra capacidad total y nunca se adopta automáticamente como tal. El rojo por uso confirmado requiere una capacidad verificada.
+
+## Una IP observada en varios dominios
+
+Por defecto se señala una IP observada en **tres dominios distintos** dentro de cualquiera de las ventanas de 5, 10, 25, 30 o 60 minutos, aunque sus rutas sean normales. Se cuentan nombres de VHost/dominio distintos, sin inferir que correspondan a propietarios distintos. La vista muestra los dominios y las horas de las capturas. Las últimas peticiones recientes se incluyen como observaciones, nunca como conexiones activas nuevas. Las sondas internas, sesiones HTTP/2 sin petición identificable y peticiones retenidas caducadas siguen excluidas.
+
+Es una regla explícita de revisión, no prueba de ataque ni una desviación histórica por sí misma. El mínimo se configura por servidor (`multidomain_min_domains`, predeterminado 3). `multidomain_trusted_ips` acepta hasta 50 IP o prefijos CIDR validados; excluye únicamente esta regla, conservando sondeos y otros detectores. No se añade automáticamente la IP del administrador. Cada servicio mantiene sus observaciones separadas.
+
+La señal es visible en cuanto aparece. La apertura del incidente sigue requiriendo confirmaciones y cobertura: actividad multidominio actual o nuevos destinos observados, no solo volver a visualizar la misma ventana. La cronología conserva hasta 30 dominios coincidentes por evaluación y sigue la retención existente. La reconstrucción de agregados incorpora las observaciones multidominio sin reproducir incidentes ni correos históricos.
