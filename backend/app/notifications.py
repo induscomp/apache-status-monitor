@@ -52,11 +52,14 @@ def configuration(db):
     return values
 
 
-def send(config, incident=None, transition="test"):
+def send(config, incident=None, transition="test", *, subject=None, body=None):
     message = EmailMessage()
     message["From"] = config["sender"]
     message["To"] = config["recipient"]
-    if incident is None:
+    if subject is not None and body is not None:
+        message["Subject"] = subject
+        message.set_content(body)
+    elif incident is None:
         message["Subject"] = "[Apache Monitor] Prueba de correo"
         message.set_content(
             "Prueba solicitada desde la configuración del monitor. Si recibes este mensaje, puedes activar las alertas en el panel."
@@ -67,6 +70,43 @@ def send(config, incident=None, transition="test"):
         message.set_content(
             f"Incidente: {incident.id}\nServidor: {incident.server_id}\nServicio: {incident.service_id}\nSujeto: {incident.subject}\nEstado: {incident.status}\nSeveridad: {incident.severity}\nValor observado: {evidence.get('value')}\nReferencia: {evidence.get('reference')}\n\nSe comparan observaciones de Apache Status y MRTG. No son visitas totales, no confirman errores 500 y no demuestran causalidad. Consulta Incidentes en el panel."
         )
+    if (
+        incident is not None
+        and incident.kind == "ip_activity"
+        and incident.evidence.get("support_ips")
+    ):
+        evidence = incident.evidence
+        phase = {
+            "opened": "Abierta",
+            "resolved": "Resuelta",
+            "escalated": "Prioridad alta",
+            "reminder": "Sigue abierta",
+        }.get(transition, transition)
+        title = f"[Apache Monitor] {phase} · campaña con {len(evidence['support_ips'])} IP candidatas · {evidence.get('server_name', incident.server_id)}"
+        message.replace_header("Subject", " ".join(title.splitlines())[:250])
+        lines = [
+            f"Incidente: {incident.id} · estado: {incident.status}",
+            f"Servidor: {evidence.get('server_name', incident.server_id)} · rango observado: {incident.subject.removeprefix('ipwatch:networks:')}",
+            f"Ventana de análisis: {evidence.get('window_minutes')} minutos",
+            *evidence.get("reasons", []),
+            "",
+            "IP candidatas a bloqueo (direcciones concretas, no todo el rango):",
+            *evidence["support_ips"],
+            "",
+            "Evidencias para revisar y reenviar a soporte:",
+        ]
+        for item in evidence.get("support_evidence", []):
+            geo = item.get("geo") or {}
+            lines.append(
+                f"{item['ip']} | {item['domain']} | {item['endpoint']} | "
+                f"{', '.join(item['captures'])} | "
+                f"{geo.get('country') or 'país desconocido'} · "
+                f"{geo.get('organization') or 'proveedor desconocido'}"
+            )
+        lines.append(
+            "Capturas cada cinco minutos; incluyen peticiones recientes retenidas. No acreditan explotación exitosa. Revisa la vigencia antes de solicitar bloqueos."
+        )
+        message.set_content("\n".join(lines))
     # Certificate verification is mandatory. No cleartext SMTP mode is offered.
     context = ssl.create_default_context()
     if config.get("security", "tls") == "starttls":

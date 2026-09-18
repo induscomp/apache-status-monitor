@@ -50,6 +50,7 @@ from app.security import (
     rate_limit,
 )
 from app.setup import router as setup_router
+from app.support import router as support_router
 from app.workspace_api import router as workspace_router
 
 logger = logging.getLogger("smon")
@@ -195,6 +196,7 @@ def create_app() -> FastAPI:
     api.include_router(goaccess_router)
     api.include_router(workspace_router)
     api.include_router(analysis_router)
+    api.include_router(support_router)
 
     @api.post("/auth/login")
     def login(

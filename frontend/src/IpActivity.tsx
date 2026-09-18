@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from './api';
+import { SupportMail } from './SupportMail';
 import { numeric } from './incidentText';
 import './overview.css';
 
@@ -123,7 +124,15 @@ function SupportEvidence({
     </details>
   );
 }
-export function IpActivity({ serverId, compact = false }: { serverId: string; compact?: boolean }) {
+export function IpActivity({
+  serverId,
+  csrf,
+  compact = false,
+}: {
+  serverId: string;
+  csrf: string;
+  compact?: boolean;
+}) {
   const [minutes, setMinutes] = useState(compact ? 60 : 30);
   const [group, setGroup] = useState<'ips' | 'networks'>('ips');
   const [data, setData] = useState<{ items: Window[] } | null>(null);
@@ -240,6 +249,7 @@ export function IpActivity({ serverId, compact = false }: { serverId: string; co
               : `Ver los otros ${campaigns.length - 3} grupos`}
           </button>
         )}
+        <SupportMail key={serverId} serverId={serverId} csrf={csrf} />
         <span role="status">{copied}</span>
       </section>
     );
@@ -289,6 +299,7 @@ export function IpActivity({ serverId, compact = false }: { serverId: string; co
           Solo señales y rutas sensibles
         </label>
       </div>
+      <SupportMail key={serverId} serverId={serverId} csrf={csrf} />
       <p role="status">{copied}</p>
       {error && <p role="alert">{error}</p>}
       {!data && !error && <p>Comparando ventanas e histórico…</p>}

@@ -839,10 +839,13 @@ function Workspace({ session, expired }: { session: Session; expired: () => void
               ))}
             </nav>
           )}
-          {view === 'ip_activity' && selected && <IpActivity serverId={selected} />}
+          {view === 'ip_activity' && selected && (
+            <IpActivity serverId={selected} csrf={session.csrf_token} />
+          )}
           {view === 'ip_activity' && !selected && <p>Selecciona un servidor.</p>}
           {(view === 'status' || view === 'incidents' || view === 'charts') && selected && (
             <ServerOverview
+              csrf={session.csrf_token}
               key={selected}
               serverId={selected}
               view={view === 'charts' ? 'status' : view}

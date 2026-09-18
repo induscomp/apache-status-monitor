@@ -356,6 +356,7 @@ function Evidence({ rankings }: { rankings: Rankings }) {
 }
 export function ServerOverview({
   serverId,
+  csrf,
   view,
   openIncidents,
   detailMode = false,
@@ -364,6 +365,7 @@ export function ServerOverview({
   openSource,
 }: {
   serverId: string;
+  csrf: string;
   view: 'status' | 'incidents';
   openIncidents: () => void;
   detailMode?: boolean;
@@ -435,7 +437,7 @@ export function ServerOverview({
       </label>
       {view === 'status' && (
         <>
-          <IpActivity serverId={serverId} compact />
+          <IpActivity serverId={serverId} csrf={csrf} compact />
           <SecurityOverview serverId={serverId} service={service} hours={hours} />
         </>
       )}
@@ -972,7 +974,8 @@ export function MailConfiguration({ csrf, accountEmail }: { csrf: string; accoun
       <h2>Correo de la cuenta</h2>
       <p>
         Configura el email de sistema que enviará las alertas de tus servidores y el destinatario
-        que las recibirá. La dirección de acceso es independiente.
+        que las recibirá. Este destinatario también recibe las solicitudes con IP candidatas que
+        confirmes desde el resumen. La dirección de acceso es independiente.
       </p>
       <p>
         SMTP con TLS directo o STARTTLS obligatorio y certificado verificado. Las muestras anómalas

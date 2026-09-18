@@ -4,6 +4,7 @@ test('server monitors show resources and activity instead of collection sources'
   page,
 }, testInfo) => {
   const at = new Date().toISOString();
+  let supportSends = 0;
   const rows = [
     {
       id: 'latency',
@@ -144,7 +145,22 @@ test('server monitors show resources and activity instead of collection sources'
         active_ips: [],
         active_domains: [],
       };
-    else if (path.endsWith('/ip-activity')) {
+    else if (path.endsWith('/support'))
+      json = { email: 'owner@example.test', ready: true, reports: [] };
+    else if (path.endsWith('/support/drafts'))
+      json = {
+        id: 'draft',
+        status: 'draft',
+        created_at: at,
+        recipient: 'owner@example.test',
+        subject: 'Solicitud de bloqueo',
+        body: '192.0.2.1 · example.test · POST /wp-login.php',
+        ips: ['192.0.2.1'],
+      };
+    else if (path.endsWith('/support/draft/send')) {
+      supportSends++;
+      json = { id: 'draft', status: 'sent', created_at: at };
+    } else if (path.endsWith('/ip-activity')) {
       const row = {
         key: '192.0.2.1',
         score: 60,
@@ -258,6 +274,16 @@ test('server monitors show resources and activity instead of collection sources'
   const download = page.waitForEvent('download');
   await campaigns.getByRole('button', { name: 'Descargar informe', exact: true }).click();
   expect((await download).suggestedFilename()).toBe('informe-ips-soporte.txt');
+  const support = page.getByRole('region', { name: 'Correo con IP candidatas' });
+  await support.getByRole('button', { name: 'Preparar correo con las IP' }).click();
+  await expect(support.getByLabel('Vista previa del correo')).toHaveValue(/192\.0\.2\.1/);
+  expect(supportSends).toBe(0);
+  await support.getByRole('button', { name: 'Confirmar y enviar este correo' }).click();
+  await expect(support.getByRole('status')).toContainText('Aceptado por el servidor SMTP');
+  await expect(
+    support.getByRole('button', { name: 'Confirmar y enviar este correo' }),
+  ).toBeDisabled();
+  expect(supportSends).toBe(1);
   await page.getByLabel('Periodo de análisis').selectOption('168');
   const panel = page.getByRole('region', { name: 'Estado de los indicadores del servidor' });
   await expect(panel.getByRole('article')).toHaveCount(7);

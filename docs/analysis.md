@@ -189,3 +189,24 @@ El prefijo se incluye como contexto, no como una recomendación de bloqueo compl
 Los informes incluyen peticiones recientes retenidas: no equivalen a logs completos
 ni acreditan explotación exitosa. Se generan bajo la sesión autenticada a partir de
 las observaciones retenidas, sin persistir nuevas copias en el servidor.
+
+### Correos de campaña y solicitudes revisadas
+
+El destinatario de «Correo» es la dirección de la aplicación para alertas automáticas
+y solicitudes manuales. Las alertas de campañas incluyen las IP concretas y sus
+evidencias para facilitar su revisión y reenvío al proveedor.
+
+«Preparar correo con las IP» genera desde el servidor un borrador de las campañas
+recientes de la última hora. La vista previa muestra destinatario, asunto y cuerpo
+exactos; solo «Confirmar y enviar este correo» inicia el envío. Se requiere SMTP
+verificado y activado. Cambiar el destinatario invalida los borradores anteriores.
+No se envía ningún correo por descargar informes o preparar borradores.
+
+Cada borrador tiene identidad propia, caduca a los 15 minutos y guarda su contenido
+cifrado. Se persiste el intento antes de contactar al SMTP: dobles clics, fallos o
+interrupciones no provocan reenvíos automáticos. Un error suspende el canal y requiere
+nueva comprobación. Límite manual: un envío cada cinco minutos y tres por hora.
+El historial distingue borrador, envío iniciado, aceptación SMTP y entrega incierta.
+La aceptación SMTP no acredita lectura ni bloqueo. Los borradores e informes
+guardados se eliminan a los 30 días; sus IP también se eliminan de las evidencias
+de incidentes vencidas según la retención existente.

@@ -251,3 +251,14 @@ class ServiceCheck(Base):
     revision: Mapped[int] = mapped_column()
     observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, index=True)
     status: Mapped[str] = mapped_column(String(20))
+
+
+class SupportReport(Base):
+    __tablename__ = "support_reports"
+    id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=identifier)
+    server_id: Mapped[str] = mapped_column(ForeignKey("servers.id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, index=True)
+    attempted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="draft")
+    encrypted: Mapped[str] = mapped_column(Text)
+    error: Mapped[str | None] = mapped_column(String(200), nullable=True)

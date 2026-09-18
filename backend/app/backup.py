@@ -54,12 +54,22 @@ def clean_row(name, row, stamp):
                     row[key] = None
     if name == "goaccess_reports" and observed and observed < stamp - timedelta(days=30):
         row["panels"] = {k: v for k, v in row["panels"].items() if k not in {"hosts", "requests"}}
+    if name == "support_reports":
+        created = row["created_at"]
+        if isinstance(created, str):
+            created = datetime.fromisoformat(created)
+        if created < stamp - timedelta(days=30):
+            return None
     if name == "incidents":
         updated = row["updated_at"]
         if isinstance(updated, str):
             updated = datetime.fromisoformat(updated)
         if updated < stamp - timedelta(days=30):
-            row["evidence"] = {k: v for k, v in row["evidence"].items() if k != "coincidences"}
+            row["evidence"] = {
+                k: v
+                for k, v in row["evidence"].items()
+                if k not in {"coincidences", "support_ips", "support_evidence"}
+            }
     return row
 
 

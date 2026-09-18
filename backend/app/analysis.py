@@ -435,7 +435,12 @@ def run():
 
 
 def retention():
+    from app.models import SupportReport
+
     with session_factory()() as db:
+        db.execute(
+            delete(SupportReport).where(SupportReport.created_at < now() - timedelta(days=30))
+        )
         db.execute(
             delete(AnomalyState).where(
                 or_(
@@ -456,7 +461,9 @@ def retention():
         ):
             if incident.kind in {"security", "ip_activity"}:
                 incident.evidence = {
-                    k: v for k, v in incident.evidence.items() if k not in {"timeline", "reasons"}
+                    k: v
+                    for k, v in incident.evidence.items()
+                    if k not in {"timeline", "reasons", "support_ips", "support_evidence"}
                 }
                 if incident.subject.startswith(("security:ips:", "ipwatch:")):
                     incident.subject = "security:ips:identidad-caducada-" + incident.id

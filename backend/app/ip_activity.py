@@ -370,7 +370,7 @@ def evaluate(db, frame, history, settings):
     from sqlalchemy import select
 
     from app.incidents import transition
-    from app.models import AnomalyState, Incident
+    from app.models import AnomalyState, Incident, Server
 
     selected = [f for f in history if f.observed_at >= frame.observed_at - timedelta(hours=25)] + [
         frame
@@ -452,7 +452,13 @@ def evaluate(db, frame, history, settings):
         timeline = (existing.evidence.get("timeline", []) if opened else []) + [event]
         evidence = dict(
             algorithm="ip-window-v1",
+            server_name=db.get(Server, frame.server_id).name,
             high_priority=row.get("high_priority", False),
+            support_ips=row.get("support_ips", []),
+            support_evidence=[
+                {**e, "captures": [t.isoformat() for t in e["captures"]]}
+                for e in row.get("support_evidence", [])
+            ],
             revision=frame.revision,
             feature="window_priority",
             value=row.get("score", 0),
