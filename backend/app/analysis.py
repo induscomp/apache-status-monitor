@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from statistics import median
 from urllib.parse import unquote
 
-from sqlalchemy import delete, select, text, update
+from sqlalchemy import delete, or_, select, text, update
 from sqlalchemy.orm import defer
 
 from app.config import get_settings
@@ -438,7 +438,10 @@ def retention():
     with session_factory()() as db:
         db.execute(
             delete(AnomalyState).where(
-                AnomalyState.subject.like("security:ips:%"),
+                or_(
+                    AnomalyState.subject.like("security:ips:%"),
+                    AnomalyState.subject.like("ipwatch:%"),
+                ),
                 AnomalyState.last_at < now() - timedelta(days=30),
             )
         )
@@ -451,11 +454,11 @@ def retention():
         for incident in db.scalars(
             select(Incident).where(Incident.updated_at < now() - timedelta(days=30))
         ):
-            if incident.kind == "security":
+            if incident.kind in {"security", "ip_activity"}:
                 incident.evidence = {
                     k: v for k, v in incident.evidence.items() if k not in {"timeline", "reasons"}
                 }
-                if incident.subject.startswith("security:ips:"):
+                if incident.subject.startswith(("security:ips:", "ipwatch:")):
                     incident.subject = "security:ips:identidad-caducada-" + incident.id
             if "coincidences" in incident.evidence:
                 incident.evidence = {

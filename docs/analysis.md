@@ -143,3 +143,19 @@ La salud contrasta CPU, carga, RAM/swap libre, workers, slots, estados y tiempos
 Los incidentes de seguridad necesitan al menos tres confirmaciones y la recuperación configurada. Reutilizan el control de idempotencia, huecos, correo y suspensión por fallo SMTP. Conservan una evolución acotada a 288 entradas, incluyendo capturas anteriores a la confirmación; la hora de apertura es la confirmación. No se generan correos al reconstruir agregados antiguos. La evolución de puntuaciones empieza con esta versión: las capturas anteriores sirven de referencia y rankings de actividad, pero sus alertas no se inventan.
 
 Los agregados con IP y endpoints viven en `ServerFrame.details` y caducan a 30 días. La evolución y motivos de incidentes antiguos se depuran, junto con su identidad IP y estados de seguimiento inactivos. El comando de reconstrucción de agregados existente también incorpora estas señales desde workers aún retenidos, de forma idempotente, sin nuevas tablas, fuentes ni credenciales.
+
+## Ventanas de IP y familias de red
+
+«Ataques y actividad IP» es una vista independiente con ventanas de 5, 10, 25, 30 y 60 minutos. Compara actividad con ventanas completas de igual duración de las últimas 24 h, excluyendo la hora reciente. Si no hay referencia propia suficiente, puede indicar un crecimiento brusco frente a la ventana anterior, identificado expresamente como comparación corta. No compara la suma de una hora con la de cinco minutos.
+
+Los prefijos IPv4 /24 e IPv6 /64 agrupan IP vecinas; las IPv4 mapeadas en IPv6 se agrupan por su IPv4. Una coincidencia de prefijo no identifica al mismo actor. Se muestran miembros, destinos y endpoints compartidos, separando esta evidencia de las coincidencias con degradación. No hay bloqueo automático de IP ni de rangos.
+
+Además de las conexiones actuales, se conservan huellas de rutas sensibles de últimas peticiones recientes de workers `_`, K y C cuando su antigüedad SS es interpretable y no supera 300 segundos. No son conexiones activas ni accesos nuevos demostrados. Se deduplican conservadoramente por IP, worker, dominio, método, ruta y Req dentro de cada ventana. Las peticiones internas y marcadores de sesión HTTP/2 quedan excluidos. El monitor no puede ver todos los intentos que ocurren entre capturas, ni ataques presentes solo en parámetros eliminados de la URL.
+
+Se distinguen sondeos de archivos de exposición/configuración (`.env`, `.git`, phpinfo, wp-config, etc.), repetición de POST de autenticación/XML-RPC y uso genérico de endpoints sensibles. Un patrón de sondeo puede aparecer aunque la IP sea nueva; su motivo es explícito y no se presenta como una desviación aprendida. AJAX o compartir red no bastan por sí solos. Los incidentes requieren las confirmaciones configuradas, evidencia nueva o actividad actual desviada y cobertura completa; ventanas solapadas con la misma evidencia no cuentan como nuevas confirmaciones. La falta de datos no resuelve incidentes.
+
+Los nuevos agregados se reconstruyen desde workers retenidos mediante `python -m app.performance_backfill`, sin reproducir alertas ni correos. IP, rutas y redes siguen la retención de 30 días. No se añaden fuentes externas ni dependencias.
+
+## Swap: lectura, tendencia y capacidad
+
+La cantidad libre y su frescura pueden evaluarse aunque no se conozca la capacidad total. En ese caso el panel muestra «Swap libre estable», «Swap libre en descenso» o aprendizaje, explicando que no permite calcular el consumo total. Una capacidad configurada inferior a la lectura libre se señala como incoherente, indicando revisar factor y unidades. El total debe estar en la misma unidad que el valor convertido; un comentario numérico en bytes con factor 1 sigue estando en bytes aunque se escriba otra etiqueta. El máximo diario/semanal de MRTG no demuestra capacidad total y nunca se adopta automáticamente como tal. El rojo por uso confirmado requiere una capacidad verificada.

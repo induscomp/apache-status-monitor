@@ -57,7 +57,7 @@ def transition(db, frame, subject, kind, value, reference, bad, evidence):
         if kind == "resources" or value >= max(1, reference["median"]) * 10
         else "warning"
     )
-    if kind in {"performance", "security"}:
+    if kind in {"performance", "security", "ip_activity"}:
         severity = "warning"
     memory = kind == "resources" and subject in {"resource:ram_free", "resource:swap_free"}
     if memory:

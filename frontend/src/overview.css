@@ -649,3 +649,12 @@
 .security-label.danger {
   color: #ae352b;
 }
+
+.server-overview.security-overview {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+.security-overview > * {
+  min-width: 0;
+  max-width: 100%;
+}

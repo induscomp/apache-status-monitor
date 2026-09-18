@@ -119,11 +119,20 @@ def build_monitors(db, server_id, start, end, incidents, truncated=False):
             if key == "swap_free":
                 total = point.get("capacity")
                 free = point["value"]
-                if total is None or not 0 <= free <= total:
+                if total is None:
+                    status = (
+                        "Swap libre estable"
+                        if state == "observed"
+                        else "Swap libre en descenso"
+                        if state == "warning"
+                        else "Aprendiendo swap libre"
+                    )
+                    reason += " Se evalúa la cantidad libre y su evolución. Sin capacidad total confirmada no se puede calcular el uso; el máximo de MRTG no es la capacidad."
+                elif not 0 <= free <= total:
                     state, status, reason = (
                         "unknown",
-                        "Uso sin determinar",
-                        "Se conoce la swap libre, pero falta una capacidad total verificada para saber cuánto se está usando.",
+                        "Capacidad incoherente",
+                        "La lectura libre supera la capacidad configurada. Revisa el factor de conversión y expresa ambos valores en la misma unidad.",
                     )
                 elif free < total:
                     state, status, reason = (
@@ -351,17 +360,7 @@ def resource_bins(start, end, samples, incidents, truncated, key):
         )
         selected = [(at, p) for at, p in samples if left <= at < right]
         count = len({int(at.timestamp()) // 300 for at, p in selected})
-        valid = len(
-            {
-                int(at.timestamp()) // 300
-                for at, p in selected
-                if p.get("source_at")
-                and (
-                    key != "swap_free"
-                    or (p.get("capacity") is not None and 0 <= p["value"] <= p["capacity"])
-                )
-            }
-        )
+        valid = len({int(at.timestamp()) // 300 for at, p in selected if p.get("source_at")})
         coverage = (
             "complete" if valid >= 5 and not truncated else "partial" if selected else "missing"
         )

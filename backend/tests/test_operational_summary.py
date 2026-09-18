@@ -85,7 +85,7 @@ def test_resource_monitors_do_not_inherit_other_source_or_resource_alerts(monkey
         assert rows["cpu"]["bins"][-1]["state"] == "observed"
 
 
-def test_unknown_swap_capacity_and_missing_resource_are_not_green(monkeypatch):
+def test_swap_readings_are_separate_from_unknown_capacity_and_missing_resources(monkeypatch):
     with session_factory()() as db:
         svc = service(db)
         stamp = now()
@@ -99,9 +99,9 @@ def test_unknown_swap_capacity_and_missing_resource_are_not_green(monkeypatch):
             r["id"]: r
             for r in build_monitors(db, svc.server_id, stamp - timedelta(hours=24), stamp, [])
         }
-        assert rows["swap_free"]["state"] == "unknown"
-        assert rows["swap_free"]["status_text"] == "Uso sin determinar"
-        assert rows["swap_free"]["bins"][-1]["state"] == "unknown"
+        assert rows["swap_free"]["state"] == "learning"
+        assert rows["swap_free"]["status_text"] == "Aprendiendo swap libre"
+        assert rows["swap_free"]["bins"][-1]["state"] == "observed"
         assert rows["ram_free"]["value"] is None
         assert rows["ram_free"]["state"] == "unknown"
         assert rows["domains"]["state"] == "learning"

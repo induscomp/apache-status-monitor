@@ -59,7 +59,9 @@ def capture(workers):
     for table in (ips, domains):
         for row in table.values():
             row.update(stats(row.pop("req")))
-    return dict(version=1, ips=ips, domains=domains)
+    from app.ip_activity import traces
+
+    return dict(version=1, window_version=1, traces=traces(workers), ips=ips, domains=domains)
 
 
 def history(db, frame):
@@ -327,6 +329,9 @@ def evaluate(db, frame, settings):
     from app.models import AnomalyState, Incident
 
     rows = history(db, frame)
+    from app.ip_activity import evaluate as evaluate_ip_activity
+
+    evaluate_ip_activity(db, frame, rows, settings)
     result = (
         assess(frame, rows, settings) if frame.valid and data(frame) else dict(ips=[], domains=[])
     )

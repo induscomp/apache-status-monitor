@@ -32,6 +32,7 @@ import { MrtgDiagnostics } from './MrtgDiagnostics';
 import { GoAccessDiagnostics } from './GoAccessDiagnostics';
 import { AlertConfiguration } from './AlertConfiguration';
 import { Dashboard } from './Dashboard';
+import { IpActivity } from './IpActivity';
 import { ServerOverview, MailConfiguration } from './ServerOverview';
 import type { Health, Page, Server, Service, Session } from './api';
 import './styles.css';
@@ -541,7 +542,7 @@ function Workspace({ session, expired }: { session: Session; expired: () => void
   const [servers, setServers] = useState<Page<Server>>(EMPTY);
   const [services, setServices] = useState<Page<Service>>(EMPTY);
   const [view, setView] = useState<
-    'home' | 'status' | 'charts' | 'incidents' | 'configuration' | 'mail'
+    'home' | 'status' | 'charts' | 'incidents' | 'ip_activity' | 'configuration' | 'mail'
   >('home');
   const [selected, setSelected] = useState<string | null>(null);
   const [serverOffset, setServerOffset] = useState(0);
@@ -822,6 +823,7 @@ function Workspace({ session, expired }: { session: Session; expired: () => void
                   ['status', 'Estado del servidor'],
                   ['charts', 'Gráficos y rankings'],
                   ['incidents', 'Incidentes'],
+                  ['ip_activity', 'Ataques y actividad IP'],
                   ['configuration', 'Configuración'],
                   ['mail', 'Correo'],
                 ] as const
@@ -837,6 +839,8 @@ function Workspace({ session, expired }: { session: Session; expired: () => void
               ))}
             </nav>
           )}
+          {view === 'ip_activity' && selected && <IpActivity serverId={selected} />}
+          {view === 'ip_activity' && !selected && <p>Selecciona un servidor.</p>}
           {(view === 'status' || view === 'incidents' || view === 'charts') && selected && (
             <ServerOverview
               key={selected}

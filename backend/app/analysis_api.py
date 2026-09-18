@@ -597,3 +597,54 @@ def security_analysis(
         active_ips=leaders(period_ips),
         active_domains=leaders(period_domains),
     )
+
+
+@router.get("/servers/{server_id}/ip-activity")
+def ip_activity(
+    server_id: UUID,
+    minutes: int = Query(30, ge=5, le=60),
+    auth=Depends(authenticated),
+    db: Session = Depends(get_db),
+):
+    from app.ip_activity import WINDOWS, analyze
+
+    if minutes not in WINDOWS:
+        raise HTTPException(422, "Selecciona 5, 10, 25, 30 o 60 minutos.")
+    from app.threats import history
+
+    server = db.get(Server, str(server_id))
+    if not server:
+        raise HTTPException(404, "Servidor no encontrado.")
+    services = db.scalars(
+        select(Service).where(
+            Service.server_id == server.id,
+            Service.kind == "apache_status",
+            Service.enabled.is_(True),
+            Service.archived.is_(False),
+        )
+    ).all()
+    items = []
+    for svc in services:
+        last = db.scalar(
+            select(ServerFrame)
+            .where(ServerFrame.service_id == svc.id)
+            .order_by(ServerFrame.observed_at.desc())
+            .limit(1)
+        )
+        if not last:
+            continue
+        rows = [f for f in history(db, last) if f.observed_at >= now() - timedelta(hours=25)] + [
+            last
+        ]
+        result = analyze(rows, now(), minutes, settings_for(server))
+        fresh = (
+            last.valid
+            and last.revision == svc.revision
+            and now() - last.observed_at <= timedelta(minutes=10)
+        )
+        if server.archived:
+            result.update(ips=[], networks=[], coverage=0)
+        result["ips"] = result["ips"][:100]
+        result["networks"] = result["networks"][:100]
+        items.append(dict(service=svc.name, service_id=svc.id, fresh=fresh, **result))
+    return dict(items=items, minutes=minutes)

@@ -31,11 +31,20 @@ def main():
             if frame.metrics.get("performance_version") == 1:
                 from app.threats import capture
 
-                if (frame.details or {}).get("security", {}).get("version") != 1:
-                    frame.details = {
-                        **(frame.details or {}),
-                        "security": capture(observation.workers),
-                    }
+                if (frame.details or {}).get("security", {}).get("window_version") != 1:
+                    security = capture(observation.workers)
+                    for group in ("ips", "domains"):
+                        for key, row in security[group].items():
+                            previous = (
+                                (frame.details or {})
+                                .get("security", {})
+                                .get(group, {})
+                                .get(key, {})
+                            )
+                            row.update(
+                                {k: previous[k] for k in ("score", "deviation") if k in previous}
+                            )
+                    frame.details = {**(frame.details or {}), "security": security}
                     count += 1
                     if count % 100 == 0:
                         db.commit()

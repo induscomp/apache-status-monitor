@@ -144,7 +144,45 @@ test('server monitors show resources and activity instead of collection sources'
         active_ips: [],
         active_domains: [],
       };
-    else if (path.endsWith('/analysis'))
+    else if (path.endsWith('/ip-activity')) {
+      const row = {
+        key: '192.0.2.1',
+        score: 60,
+        flagged: true,
+        status: 'Patrón para revisar',
+        observations: 4,
+        peak: 2,
+        samples: 2,
+        first: at,
+        last: at,
+        retained: 1,
+        signatures: 3,
+        probes: 2,
+        reasons: ['Sondeo de configuración'],
+        ips: ['192.0.2.1', '192.0.2.2'],
+        domains: ['example.test'],
+        endpoints: { 'GET /.env': 2 },
+        shared: [{ target: 'example.test · GET /.env', ips: ['192.0.2.1', '192.0.2.2'] }],
+        reference: null,
+        geo: null,
+      };
+      json = {
+        items: [
+          {
+            service: 'Apache',
+            service_id: 'apache',
+            fresh: true,
+            coverage: 1,
+            samples: 6,
+            expected: 6,
+            start: at,
+            end: at,
+            ips: [row],
+            networks: [{ ...row, key: '192.0.2.0/24' }],
+          },
+        ],
+      };
+    } else if (path.endsWith('/analysis'))
       json = {
         server: server.name,
         state: 'resource_pressure',
@@ -220,5 +258,14 @@ test('server monitors show resources and activity instead of collection sources'
   await expect(page.getByRole('tooltip')).toContainText('Sin muestras');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath('operational-mobile.png'), fullPage: true });
+  await page.getByRole('button', { name: 'Ataques y actividad IP', exact: true }).click();
+  const threats = page.getByRole('region', { name: 'Ataques y actividad IP' });
+  await expect(threats.getByText('192.0.2.1', { exact: true })).toBeVisible();
+  await page.getByLabel('Ventana', { exact: true }).selectOption('60');
+  await page.getByLabel('Agrupar por', { exact: true }).selectOption('networks');
+  await expect(threats.getByText('192.0.2.0/24', { exact: true })).toBeVisible();
+  await expect(threats.getByRole('button', { name: 'Copiar rango' })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath('ip-activity-mobile.png'), fullPage: true });
   expect(errors).toEqual([]);
 });
