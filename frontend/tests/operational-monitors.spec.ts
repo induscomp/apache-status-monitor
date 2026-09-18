@@ -247,11 +247,16 @@ test('server monitors show resources and activity instead of collection sources'
   const campaigns = page.getByRole('region', { name: 'Alertas importantes de IP' });
   await expect(campaigns).toContainText('Prioridad alta');
   await expect(campaigns).toContainText('Vietnam');
+  await campaigns.getByText('1 grupos · 2 IP candidatas · listado completo para soporte').click();
+  await expect(campaigns.getByLabel('Informe completo para soporte')).toHaveValue(/192\.0\.2\.2/);
+  const fullDownload = page.waitForEvent('download');
+  await campaigns.getByRole('button', { name: 'Descargar informe completo', exact: true }).click();
+  expect((await fullDownload).suggestedFilename()).toBe('informe-ips-soporte.txt');
   await campaigns.getByText('2 IP candidatas a bloqueo · evidencias para soporte').click();
   await expect(campaigns.getByLabel('Informe para soporte')).toHaveValue(/192\.0\.2\.1/);
   await expect(campaigns.getByLabel('Informe para soporte')).toHaveValue(/one\.test/);
   const download = page.waitForEvent('download');
-  await campaigns.getByRole('button', { name: 'Descargar informe' }).click();
+  await campaigns.getByRole('button', { name: 'Descargar informe', exact: true }).click();
   expect((await download).suggestedFilename()).toBe('informe-ips-soporte.txt');
   await page.getByLabel('Periodo de análisis').selectOption('168');
   const panel = page.getByRole('region', { name: 'Estado de los indicadores del servidor' });

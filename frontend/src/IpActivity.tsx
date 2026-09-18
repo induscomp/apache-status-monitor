@@ -75,6 +75,15 @@ function supportReport(serverId: string, item: Window, row: Row) {
     'Capturas cada 5 min; incluyen últimas peticiones retenidas recientes. No son logs completos ni prueban explotación exitosa. País/ASN: atribución de la base local actual, no criterio de culpabilidad.',
   ].join('\n');
 }
+function downloadReport(report: string) {
+  const url = URL.createObjectURL(new Blob([report], { type: 'text/plain;charset=utf-8' }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'informe-ips-soporte.txt';
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 function SupportEvidence({
   serverId,
   item,
@@ -88,14 +97,6 @@ function SupportEvidence({
 }) {
   if (!row.high_priority) return null;
   const report = supportReport(serverId, item, row);
-  function download() {
-    const url = URL.createObjectURL(new Blob([report], { type: 'text/plain;charset=utf-8' }));
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'informe-ips-soporte.txt';
-    link.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  }
   return (
     <details>
       <summary>{row.support_ips.length} IP candidatas a bloqueo · evidencias para soporte</summary>
@@ -108,7 +109,7 @@ function SupportEvidence({
         <button type="button" onClick={() => void copy(report)}>
           Copiar informe para soporte
         </button>
-        <button type="button" onClick={download}>
+        <button type="button" onClick={() => downloadReport(report)}>
           Descargar informe
         </button>
       </div>
@@ -128,10 +129,12 @@ export function IpActivity({ serverId, compact = false }: { serverId: string; co
   const [data, setData] = useState<{ items: Window[] } | null>(null);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState('');
+  const [showAll, setShowAll] = useState(false);
   const [onlySignals, setOnlySignals] = useState(true);
   useEffect(() => {
     let live = true;
     setData(null);
+    setShowAll(false);
     const refresh = async () => {
       try {
         const next = await api<{ items: Window[] }>(
@@ -165,6 +168,16 @@ export function IpActivity({ serverId, compact = false }: { serverId: string; co
       data?.items.flatMap((item) =>
         item.networks.filter((row) => row.high_priority).map((row) => ({ item, row })),
       ) || [];
+    campaigns.sort(
+      (a, b) => b.row.score - a.row.score || b.row.support_ips.length - a.row.support_ips.length,
+    );
+    const allIps = [...new Set(campaigns.flatMap(({ row }) => row.support_ips))].sort();
+    const completeReport = [
+      'IP candidatas a bloqueo (sin duplicados):',
+      ...allIps,
+      '',
+      ...campaigns.map(({ item, row }) => supportReport(serverId, item, row)),
+    ].join('\n');
     return (
       <section className="overview-card" aria-label="Alertas importantes de IP">
         <h3>Alertas importantes de IP · última hora</h3>
@@ -177,7 +190,30 @@ export function IpActivity({ serverId, compact = false }: { serverId: string; co
               ' Hay lecturas ausentes o desactualizadas.'}
           </p>
         )}
-        {campaigns.map(({ item, row }) => (
+        {campaigns.length > 0 && (
+          <details>
+            <summary>
+              {campaigns.length} grupos · {allIps.length} IP candidatas · listado completo para
+              soporte
+            </summary>
+            <div className="overview-controls">
+              <button type="button" onClick={() => void copy(allIps.join('\n'))}>
+                Copiar todas las IP candidatas
+              </button>
+              <button type="button" onClick={() => downloadReport(completeReport)}>
+                Descargar informe completo
+              </button>
+            </div>
+            <textarea
+              aria-label="Informe completo para soporte"
+              readOnly
+              rows={8}
+              value={completeReport}
+              style={{ width: '100%' }}
+            />
+          </details>
+        )}
+        {(showAll ? campaigns : campaigns.slice(0, 3)).map(({ item, row }) => (
           <article
             key={item.service_id + row.key}
             style={{ borderLeft: '4px solid #bd4936', padding: '8px 12px', margin: '8px 0' }}
@@ -197,6 +233,13 @@ export function IpActivity({ serverId, compact = false }: { serverId: string; co
             <SupportEvidence serverId={serverId} item={item} row={row} copy={copy} />
           </article>
         ))}
+        {campaigns.length > 3 && (
+          <button type="button" onClick={() => setShowAll(!showAll)}>
+            {showAll
+              ? 'Mostrar solo los 3 prioritarios'
+              : `Ver los otros ${campaigns.length - 3} grupos`}
+          </button>
+        )}
         <span role="status">{copied}</span>
       </section>
     );
