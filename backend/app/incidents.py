@@ -58,7 +58,9 @@ def transition(db, frame, subject, kind, value, reference, bad, evidence):
         else "warning"
     )
     if kind in {"performance", "security", "ip_activity"}:
-        severity = "warning"
+        severity = (
+            "critical" if kind == "ip_activity" and evidence.get("high_priority") else "warning"
+        )
     memory = kind == "resources" and subject in {"resource:ram_free", "resource:swap_free"}
     if memory:
         severity, swap_state = memory_severity(evidence.get("resources", {}))

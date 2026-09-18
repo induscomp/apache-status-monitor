@@ -167,3 +167,25 @@ Por defecto se señala una IP observada en **tres dominios distintos** dentro de
 Es una regla explícita de revisión, no prueba de ataque ni una desviación histórica por sí misma. El mínimo se configura por servidor (`multidomain_min_domains`, predeterminado 3). `multidomain_trusted_ips` acepta hasta 50 IP o prefijos CIDR validados; excluye únicamente esta regla, conservando sondeos y otros detectores. No se añade automáticamente la IP del administrador. Cada servicio mantiene sus observaciones separadas.
 
 La señal es visible en cuanto aparece. La apertura del incidente sigue requiriendo confirmaciones y cobertura: actividad multidominio actual o nuevos destinos observados, no solo volver a visualizar la misma ventana. La cronología conserva hasta 30 dominios coincidentes por evaluación y sigue la retención existente. La reconstrucción de agregados incorpora las observaciones multidominio sin reproducir incidentes ni correos históricos.
+
+### Campañas multidominio y listado para soporte
+
+El resumen del servidor destaca posibles campañas en la última hora. La regla combina
+al menos dos IP del mismo prefijo de análisis (/24 IPv4, /64 IPv6), dos dominios
+con evidencia sensible y dos capturas, junto con sondeo de exposición o POST de
+autenticación repetidos. País y ASN se muestran desde la base local; nunca elevan
+por sí solos la prioridad. Las visitas ordinarias y los vecinos sin evidencia sensible
+no se incluyen en el listado de candidatos a bloqueo.
+
+El aviso visible se calcula sobre las capturas disponibles, indicando cobertura y
+frescura. El incidente persistente requiere las confirmaciones habituales y evidencia
+nueva entre capturas; una campaña confirmada tiene prioridad alta y colorea también
+el indicador IP. No cambia la política independiente de RAM/swap.
+
+En el resumen y en «Ataques y actividad IP» se pueden copiar las IP concretas o
+copiar/descargar un informe de texto con fuente, ventana UTC, cobertura, dominios,
+rutas, horas y atribución local. El monitor no envía el informe ni bloquea direcciones.
+El prefijo se incluye como contexto, no como una recomendación de bloqueo completo.
+Los informes incluyen peticiones recientes retenidas: no equivalen a logs completos
+ni acreditan explotación exitosa. Se generan bajo la sesión autenticada a partir de
+las observaciones retenidas, sin persistir nuevas copias en el servidor.

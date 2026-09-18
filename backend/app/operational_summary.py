@@ -226,7 +226,12 @@ def build_monitors(db, server_id, start, end, incidents, truncated=False):
         related = (
             domain_incidents
             if key == "domains"
-            else [i for i in domain_incidents if i.evidence.get("coincidences", {}).get("ips")]
+            else [
+                i
+                for i in incidents
+                if i.subject.startswith("ipwatch:")
+                or (i in domain_incidents and i.evidence.get("coincidences", {}).get("ips"))
+            ]
         )
         opened = [i for i in related if i.status == "open"]
         state, status = (
@@ -253,23 +258,29 @@ def build_monitors(db, server_id, start, end, incidents, truncated=False):
             )
             reason += f" La recogida funciona: hay {available} de 170 intervalos válidos necesarios por servicio en las últimas 24 horas, excluyendo los últimos 30 minutos. Los huecos no se rellenan; la referencia se recupera con nuevas lecturas."
         if key == "ips":
-            # We have rankings, not an independent IP anomaly detector. Do not promise a green health check.
+            # No flag in sampled traffic is not proof of the absence of attacks.
             state, status = (
                 ("informational", "Observación")
                 if complete_now
                 else ("unknown", "Cobertura insuficiente")
             )
-            reason = "Muestra las IP con más conexiones en la última captura y las que coinciden con avisos de dominio. No hay un detector independiente por IP; la concentración no demuestra un ataque."
+            reason = "Muestra las IP con más conexiones en la última captura y las que coinciden con avisos de dominio. También incluye alertas por IP y familias en ventanas de 5 a 60 minutos. Revisa el resumen de campañas y sus IP candidatas a bloqueo."
         if opened:
             state = (
                 "critical"
-                if key == "domains" and any(i.severity == "critical" for i in opened)
+                if any(
+                    i.severity == "critical"
+                    and (key == "domains" or i.subject.startswith("ipwatch:"))
+                    for i in opened
+                )
                 else "warning"
             )
             status = (
                 "Dominios fuera de lo habitual"
                 if key == "domains"
-                else "IPs coincidentes con avisos"
+                else "Campaña multidominio · prioridad alta"
+                if state == "critical"
+                else "Actividad IP para revisar"
             )
         context = [
             {
@@ -414,7 +425,17 @@ def activity_bins(start, end, frames, services, incidents, truncated, key):
             len({int(f.observed_at.timestamp()) // 300 for f in selected}),
             state,
         )
-        if key == "ips" and item["state"] == "critical":
+        if (
+            key == "ips"
+            and item["state"] == "critical"
+            and not any(
+                i.subject.startswith("ipwatch:")
+                and i.severity == "critical"
+                and i.opened_at < right
+                and (i.resolved_at is None or i.resolved_at >= left)
+                for i in incidents
+            )
+        ):
             item["state"] = "warning"
         bins.append(item)
     return bins

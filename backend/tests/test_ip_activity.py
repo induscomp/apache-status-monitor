@@ -224,3 +224,79 @@ def test_multidomain_incident_needs_confirmation_and_is_service_scoped():
         assert any("3 dominios" in r for r in incident.evidence["reasons"])
         assert db.scalar(select(Incident).where(Incident.service_id == other.id)) is None
         db.rollback()
+
+
+def test_multidomain_campaign_prioritizes_behavior_and_exports_only_supported_ips(monkeypatch):
+    at = now()
+
+    def geo(ip):
+        return {"country": "VN", "asn": 64500, "organization": "Test network"}
+
+    monkeypatch.setattr("app.ip_activity.lookup", geo)
+    frames = []
+    for i in range(2):
+        attacks = [
+            {
+                **worker(
+                    ip=f"192.0.2.{j + 1}", path="/wp-login.php", slot=f"{i}-{j}", state="_", age=20
+                ),
+                "method": "POST",
+                "domain": f"domain{j}.test",
+            }
+            for j in range(3)
+        ]
+        # Innocent neighbour must never enter the support candidate list.
+        attacks.append(worker(ip="192.0.2.99", path="/"))
+        frames.append(snapshot(at - timedelta(minutes=5 * (1 - i)), attacks))
+    row = analyze(frames, at, 10)["networks"][0]
+    assert row["high_priority"] and row["score"] >= 85
+    assert row["support_ips"] == ["192.0.2.1", "192.0.2.2", "192.0.2.3"]
+    assert all(e["endpoint"] == "POST /wp-login.php" for e in row["support_evidence"])
+    assert all(e["captures"] and e["geo"]["country"] == "VN" for e in row["support_evidence"])
+    # Country never changes priority; ordinary multi-domain browsing is not a campaign.
+    monkeypatch.setattr("app.ip_activity.lookup", lambda ip: {"country": "ES"})
+    assert analyze(frames, at, 10)["networks"][0]["score"] == row["score"]
+    ordinary = [
+        snapshot(
+            at,
+            [{**worker(ip=f"192.0.2.{i + 1}", path="/"), "domain": f"{i}.test"} for i in range(3)],
+        )
+    ]
+    assert not analyze(ordinary, at, 5)["networks"][0]["high_priority"]
+    assert not analyze(frames[-1:], at, 5)["networks"][0]["high_priority"]
+    # Normal domains do not inflate the number of sensitive targets.
+    for f in frames:
+        for t in f.details["security"]["traces"]:
+            t["domain"] = "single.test"
+    assert not analyze(frames, at, 10)["networks"][0]["high_priority"]
+
+
+def test_confirmed_campaign_opens_high_priority_incident():
+    with session_factory()() as db:
+        svc = service(db)
+        at = now()
+        rows = []
+        for i in range(12, 0, -1):
+            old = frame(db, svc, at - timedelta(minutes=i * 5))
+            old.details = {"security": capture([])}
+            rows.append(old)
+        for i in range(3):
+            current = frame(db, svc, at + timedelta(minutes=5 * i))
+            current.details = {
+                "security": capture(
+                    [
+                        {**worker(ip=f"192.0.2.{j + 1}", slot=f"{i}-{j}"), "domain": f"{j}.test"}
+                        for j in range(3)
+                    ]
+                )
+            }
+            evaluate(db, current, rows, AlertSettings().model_dump())
+            rows.append(current)
+        incident = db.scalar(
+            select(Incident).where(
+                Incident.service_id == svc.id, Incident.subject == "ipwatch:networks:192.0.2.0/24"
+            )
+        )
+        assert incident and incident.severity == "critical"
+        assert incident.evidence["high_priority"]
+        db.rollback()

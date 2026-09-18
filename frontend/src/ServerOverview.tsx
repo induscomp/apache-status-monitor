@@ -10,6 +10,7 @@ import {
   Legend,
 } from 'recharts';
 import { api } from './api';
+import { IpActivity } from './IpActivity';
 import { SecurityOverview } from './SecurityOverview';
 import { memory, numeric, subjectText, incidentExplanation } from './incidentText';
 import './overview.css';
@@ -433,7 +434,10 @@ export function ServerOverview({
         </select>
       </label>
       {view === 'status' && (
-        <SecurityOverview serverId={serverId} service={service} hours={hours} />
+        <>
+          <IpActivity serverId={serverId} compact />
+          <SecurityOverview serverId={serverId} service={service} hours={hours} />
+        </>
       )}
       {error && (
         <p role="alert" className="error">

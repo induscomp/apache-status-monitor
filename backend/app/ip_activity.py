@@ -121,6 +121,7 @@ def aggregate(frames):
                         first=frame.observed_at,
                         last=frame.observed_at,
                         shared={},
+                        support={},
                     ),
                 )
                 row["ips"].add(ip)
@@ -137,6 +138,9 @@ def aggregate(frames):
                     if r["domain"]:
                         row["domains"].add(r["domain"])
                     endpoint = f"{r['method']} {r['path']}"
+                    if r["probe"] or r.get("auth"):
+                        evidence_key = (ip, r["domain"], endpoint)
+                        row["support"].setdefault(evidence_key, set()).add(frame.observed_at)
                     shared = f"{r['domain']} · {endpoint}"
                     row["shared"].setdefault(shared, set()).add(ip)
                     signature = (group, key, ip, r["slot"], r["domain"], endpoint, r["req"])
@@ -238,11 +242,26 @@ def analyze(frames, at, minutes, settings=None):
                 and bool(shared)
                 and (row["probes"] >= 2 or credential_pattern or spike)
             )
+            support_ips = {ip for ip, domain, endpoint in row["support"]}
+            support_domains = {domain for ip, domain, endpoint in row["support"] if domain}
+            support_times = set().union(*row["support"].values()) if row["support"] else set()
+            high_priority = (
+                group == "networks"
+                and len(support_ips) >= 2
+                and len(support_domains) >= 2
+                and len(support_times) >= 2
+                and (probe_pattern or credential_pattern)
+            )
             domain_limit = settings.get("multidomain_min_domains", 3)
             exempt = group == "ips" and trusted(key, settings)
             multidomain = group == "ips" and len(row["domains"]) >= domain_limit and not exempt
             flagged = (
-                probe_pattern or credential_pattern or coordinated or spike or multidomain
+                probe_pattern
+                or credential_pattern
+                or coordinated
+                or spike
+                or multidomain
+                or high_priority
             ) and (group == "ips" or len(row["ips"]) >= 2)
             score = min(
                 100,
@@ -252,7 +271,15 @@ def analyze(frames, at, minutes, settings=None):
                 + (30 if multidomain else 0)
                 + (min(3, len(row["samples"])) * 5 if row["signatures"] else 0),
             )
+            if high_priority:
+                score = max(85, score)
             reasons = []
+            if high_priority:
+                reasons.append(
+                    f"Prioridad alta: {len(support_ips)} IP del mismo prefijo, "
+                    f"{len(support_domains)} dominios y rutas de exposición o POST de autenticación "
+                    f"en {len(support_times)} capturas; posible campaña distribuida"
+                )
             if multidomain:
                 reasons.append(
                     f"Una misma IP observada en {len(row['domains'])} dominios dentro de {minutes} minutos (aviso desde {domain_limit}); revisar navegación entre sitios"
@@ -294,6 +321,20 @@ def analyze(frames, at, minutes, settings=None):
                     score=score,
                     flagged=flagged,
                     multidomain=multidomain,
+                    high_priority=high_priority,
+                    support_ips=sorted(support_ips) if high_priority else [],
+                    support_evidence=[
+                        dict(
+                            ip=ip,
+                            domain=domain,
+                            endpoint=endpoint,
+                            captures=sorted(times),
+                            geo=lookup(ip),
+                        )
+                        for (ip, domain, endpoint), times in sorted(row["support"].items())
+                    ]
+                    if high_priority
+                    else [],
                     domain_samples={
                         d: sorted(times) for d, times in row.get("domain_samples", {}).items()
                     },
@@ -311,7 +352,9 @@ def analyze(frames, at, minutes, settings=None):
                     retained=row["retained"],
                     probes=row["probes"],
                     signatures=row["signatures"],
-                    status="Patrón para revisar"
+                    status="Posible campaña multidominio · prioridad alta"
+                    if high_priority
+                    else "Patrón para revisar"
                     if flagged
                     else "Rutas sensibles observadas"
                     if row["signatures"]
@@ -409,6 +452,7 @@ def evaluate(db, frame, history, settings):
         timeline = (existing.evidence.get("timeline", []) if opened else []) + [event]
         evidence = dict(
             algorithm="ip-window-v1",
+            high_priority=row.get("high_priority", False),
             revision=frame.revision,
             feature="window_priority",
             value=row.get("score", 0),

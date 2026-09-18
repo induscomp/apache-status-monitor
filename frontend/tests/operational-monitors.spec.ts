@@ -178,7 +178,30 @@ test('server monitors show resources and activity instead of collection sources'
             start: at,
             end: at,
             ips: [row],
-            networks: [{ ...row, key: '192.0.2.0/24' }],
+            networks: [
+              {
+                ...row,
+                key: '192.0.2.0/24',
+                high_priority: true,
+                support_ips: ['192.0.2.1', '192.0.2.2'],
+                support_evidence: [
+                  {
+                    ip: '192.0.2.1',
+                    domain: 'one.test',
+                    endpoint: 'GET /.env',
+                    captures: [at],
+                    geo: { country: 'VN', asn: 64500, organization: 'Test network' },
+                  },
+                  {
+                    ip: '192.0.2.2',
+                    domain: 'two.test',
+                    endpoint: 'POST /wp-login.php',
+                    captures: [at],
+                    geo: null,
+                  },
+                ],
+              },
+            ],
           },
         ],
       };
@@ -221,6 +244,15 @@ test('server monitors show resources and activity instead of collection sources'
   await expect(page.getByRole('region', { name: 'Seguridad y anomalías' })).toContainText(
     'Estado general: Vigilancia',
   );
+  const campaigns = page.getByRole('region', { name: 'Alertas importantes de IP' });
+  await expect(campaigns).toContainText('Prioridad alta');
+  await expect(campaigns).toContainText('Vietnam');
+  await campaigns.getByText('2 IP candidatas a bloqueo · evidencias para soporte').click();
+  await expect(campaigns.getByLabel('Informe para soporte')).toHaveValue(/192\.0\.2\.1/);
+  await expect(campaigns.getByLabel('Informe para soporte')).toHaveValue(/one\.test/);
+  const download = page.waitForEvent('download');
+  await campaigns.getByRole('button', { name: 'Descargar informe' }).click();
+  expect((await download).suggestedFilename()).toBe('informe-ips-soporte.txt');
   await page.getByLabel('Periodo de análisis').selectOption('168');
   const panel = page.getByRole('region', { name: 'Estado de los indicadores del servidor' });
   await expect(panel.getByRole('article')).toHaveCount(7);

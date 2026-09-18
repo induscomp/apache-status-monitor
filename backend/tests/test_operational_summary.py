@@ -232,3 +232,34 @@ def test_domain_ranking_preserves_service_scope_gaps_and_invalid_latest():
     assert rows[0]["bins"][-1]["value"] == 4
     assert rows[1]["average"] == 2
     assert rows[1]["current"] == 2
+
+
+def test_confirmed_ip_campaign_colors_ip_monitor_and_history_red():
+    with session_factory()() as db:
+        svc = service(db)
+        stamp = now()
+        frame(db, svc, at=stamp - timedelta(minutes=1))
+        incident = Incident(
+            server_id=svc.server_id,
+            service_id=svc.id,
+            subject="ipwatch:networks:192.0.2.0/24",
+            kind="ip_activity",
+            status="open",
+            severity="critical",
+            opened_at=stamp - timedelta(minutes=10),
+            updated_at=stamp,
+            evidence={"high_priority": True},
+        )
+        db.add(incident)
+        db.flush()
+        rows = {
+            r["id"]: r
+            for r in build_monitors(
+                db, svc.server_id, stamp - timedelta(hours=24), stamp, [incident]
+            )
+        }
+        assert rows["ips"]["state"] == "critical"
+        assert "prioridad alta" in rows["ips"]["status_text"]
+        assert any(b["state"] == "critical" for b in rows["ips"]["bins"])
+        assert rows["domains"]["state"] != "critical"
+        db.rollback()

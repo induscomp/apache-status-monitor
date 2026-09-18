@@ -4,6 +4,15 @@ import { numeric } from './incidentText';
 import './overview.css';
 
 type Row = {
+  high_priority: boolean;
+  support_ips: string[];
+  support_evidence: {
+    ip: string;
+    domain: string;
+    endpoint: string;
+    captures: string[];
+    geo: Row['geo'];
+  }[];
   key: string;
   score: number;
   flagged: boolean;
@@ -39,8 +48,82 @@ type Window = {
 };
 const date = (s: string) =>
   new Date(s).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
-export function IpActivity({ serverId }: { serverId: string }) {
-  const [minutes, setMinutes] = useState(30);
+function attribution(geo: Row['geo']) {
+  const country = geo?.country
+    ? new Intl.DisplayNames(['es'], { type: 'region' }).of(geo.country) || geo.country
+    : 'País desconocido';
+  return `${country} · ${geo?.organization || 'Proveedor desconocido'}${geo?.asn ? ` · AS${geo.asn}` : ''}`;
+}
+function supportReport(serverId: string, item: Window, row: Row) {
+  return [
+    'Solicitud de revisión y bloqueo de IPs con actividad sospechosa',
+    `Servidor: ${serverId} · fuente: ${item.service}`,
+    `Ventana UTC: ${item.start} — ${item.end}`,
+    `Cobertura: ${item.samples}/${item.expected} capturas · ${item.fresh ? 'lectura reciente' : 'lectura desactualizada'}`,
+    `Agrupación de análisis: ${row.key} (no se solicita bloquear el prefijo completo)`,
+    ...row.reasons,
+    '',
+    'IP concretas candidatas a bloqueo:',
+    ...row.support_ips,
+    '',
+    'Evidencia por IP, dominio y ruta (horas UTC):',
+    ...row.support_evidence.map(
+      (e) =>
+        `${e.ip} | ${attribution(e.geo)} | ${e.domain || 'Dominio desconocido'} | ${e.endpoint} | ${e.captures.join(', ')}`,
+    ),
+    '',
+    'Capturas cada 5 min; incluyen últimas peticiones retenidas recientes. No son logs completos ni prueban explotación exitosa. País/ASN: atribución de la base local actual, no criterio de culpabilidad.',
+  ].join('\n');
+}
+function SupportEvidence({
+  serverId,
+  item,
+  row,
+  copy,
+}: {
+  serverId: string;
+  item: Window;
+  row: Row;
+  copy: (value: string) => Promise<void>;
+}) {
+  if (!row.high_priority) return null;
+  const report = supportReport(serverId, item, row);
+  function download() {
+    const url = URL.createObjectURL(new Blob([report], { type: 'text/plain;charset=utf-8' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'informe-ips-soporte.txt';
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  return (
+    <details>
+      <summary>{row.support_ips.length} IP candidatas a bloqueo · evidencias para soporte</summary>
+      <p>{row.support_ips.join(' · ')}</p>
+      <p>{[...new Set(row.support_evidence.map((e) => attribution(e.geo)))].join(' / ')}</p>
+      <div className="overview-controls">
+        <button type="button" onClick={() => void copy(row.support_ips.join('\n'))}>
+          Copiar IPs
+        </button>
+        <button type="button" onClick={() => void copy(report)}>
+          Copiar informe para soporte
+        </button>
+        <button type="button" onClick={download}>
+          Descargar informe
+        </button>
+      </div>
+      <textarea
+        aria-label="Informe para soporte"
+        readOnly
+        rows={8}
+        value={report}
+        style={{ width: '100%' }}
+      />
+    </details>
+  );
+}
+export function IpActivity({ serverId, compact = false }: { serverId: string; compact?: boolean }) {
+  const [minutes, setMinutes] = useState(compact ? 60 : 30);
   const [group, setGroup] = useState<'ips' | 'networks'>('ips');
   const [data, setData] = useState<{ items: Window[] } | null>(null);
   const [error, setError] = useState('');
@@ -72,10 +155,51 @@ export function IpActivity({ serverId }: { serverId: string }) {
   async function copy(value: string) {
     try {
       await navigator.clipboard.writeText(value);
-      setCopied(`Copiado: ${value}`);
+      setCopied('Copiado al portapapeles.');
     } catch {
-      setCopied(`Selecciona y copia manualmente: ${value}`);
+      setCopied('No se pudo copiar. Selecciona el texto del informe y cópialo manualmente.');
     }
+  }
+  if (compact) {
+    const campaigns =
+      data?.items.flatMap((item) =>
+        item.networks.filter((row) => row.high_priority).map((row) => ({ item, row })),
+      ) || [];
+    return (
+      <section className="overview-card" aria-label="Alertas importantes de IP">
+        <h3>Alertas importantes de IP · última hora</h3>
+        {error && <p role="alert">{error}</p>}
+        {!data && !error && <p>Comprobando patrones multidominio…</p>}
+        {data && !campaigns.length && (
+          <p>
+            No se han observado campañas multidominio en las capturas disponibles.
+            {data.items.some((item) => !item.fresh || item.coverage < 1) &&
+              ' Hay lecturas ausentes o desactualizadas.'}
+          </p>
+        )}
+        {campaigns.map(({ item, row }) => (
+          <article
+            key={item.service_id + row.key}
+            style={{ borderLeft: '4px solid #bd4936', padding: '8px 12px', margin: '8px 0' }}
+          >
+            <strong>Prioridad alta · posible campaña contra varios dominios</strong>
+            <p>
+              {row.key} · {row.support_ips.length} IP con evidencia sensible ·{' '}
+              {new Set(row.support_evidence.map((e) => e.domain).filter(Boolean)).size} dominios ·{' '}
+              {date(row.first)}–{date(row.last)} · {item.service}
+            </p>
+            <p>{[...new Set(row.support_evidence.map((e) => attribution(e.geo)))].join(' / ')}</p>
+            {(!item.fresh || item.coverage < 1) && (
+              <p>
+                Lecturas incompletas o desactualizadas · cobertura {item.samples}/{item.expected}.
+              </p>
+            )}
+            <SupportEvidence serverId={serverId} item={item} row={row} copy={copy} />
+          </article>
+        ))}
+        <span role="status">{copied}</span>
+      </section>
+    );
   }
   return (
     <section className="server-overview security-overview" aria-label="Ataques y actividad IP">
@@ -188,6 +312,7 @@ export function IpActivity({ serverId }: { serverId: string }) {
                           {r.status}
                         </strong>
                         <p>Prioridad {r.score}/100 · no es probabilidad</p>
+                        <SupportEvidence serverId={serverId} item={item} row={r} copy={copy} />
                         <ul>
                           {r.reasons.map((reason) => (
                             <li key={reason}>{reason}</li>
